@@ -22,7 +22,7 @@ import {
   VERDICT_BG,
   VERDICT_LABELS,
 } from "@/constants";
-import { cn, formatNumber, formatTimeAgo } from "@/lib/utils";
+import { cn, formatNumber, formatTimeAgo, truncateAddress } from "@/lib/utils";
 
 const TIER_ICONS: Record<string, string> = {
   new: "🌱",
@@ -60,7 +60,10 @@ export default function DashboardPage() {
       setLoading(false);
       return;
     }
+
     let cancelled = false;
+    setLoading(true);
+
     async function load() {
       const [p, a, t] = await Promise.all([
         getProfile(address!),
@@ -72,7 +75,6 @@ export default function DashboardPage() {
       if (a.data) setAnalytics(a.data);
       if (t.data != null) setTotalPlatform(Number(t.data));
 
-      // Try Supabase index first, fall back to localStorage
       try {
         const res = await fetch(
           `/api/index?wallet=${encodeURIComponent(address!)}&limit=5`
@@ -107,8 +109,10 @@ export default function DashboardPage() {
         }
       }
 
-      if (!cancelled) setLoading(false);
+      // Always flip loading off, even if cancelled (avoids stuck skeleton)
+      setLoading(false);
     }
+
     load();
     return () => {
       cancelled = true;
@@ -137,12 +141,13 @@ export default function DashboardPage() {
     );
   }
 
-  const tier = profile?.reputation_tier ?? "new";
+  // Safe defaults so the page always renders, even when profile is empty
+  const tier = profile?.reputation_tier || "new";
   const repScore = profile?.reputation_score ?? 0;
   const totalVerified = profile?.total_verifications ?? 0;
   const currentTierIndex = TIER_ORDER.indexOf(tier);
   const nextTier =
-    currentTierIndex < TIER_ORDER.length - 1
+    currentTierIndex >= 0 && currentTierIndex < TIER_ORDER.length - 1
       ? TIER_ORDER[currentTierIndex + 1]
       : null;
   const currentThreshold = REPUTATION_TIER_THRESHOLDS[tier] ?? 0;
@@ -158,11 +163,15 @@ export default function DashboardPage() {
       <Navbar />
 
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
+        {/* Header */}
+        <div className="flex items-start justify-between mb-8 flex-wrap gap-4">
           <div>
             <h1 className="text-3xl font-bold text-primaryText">Dashboard</h1>
             <p className="text-secondaryText mt-1">
-              Your on-chain verification activity and reputation
+              On-chain verification activity for{" "}
+              <span className="font-mono text-xs">
+                {truncateAddress(address ?? "")}
+              </span>
             </p>
           </div>
           <Link href="/verify" className="btn-primary">
@@ -170,96 +179,154 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Left — Profile + Quick Stats */}
-          <div className="space-y-6">
-            {loading ? (
-              <div className="card p-6 animate-pulse">
-                <div className="h-20 bg-border rounded mb-4" />
-                <div className="h-4 bg-border rounded w-2/3 mb-2" />
-                <div className="h-4 bg-border rounded w-1/2" />
-              </div>
-            ) : (
-              <div className="card p-6 space-y-5">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-3xl">{TIER_ICONS[tier]}</span>
-                    <div>
-                      <p className="font-bold text-primaryText text-lg">
-                        {REPUTATION_TIER_LABELS[tier] ?? tier}
-                      </p>
-                      <p className="text-xs text-secondaryText">On-chain</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-3xl font-bold text-graphPurple">
-                      {repScore}
-                    </p>
-                    <p className="text-xs text-secondaryText">points</p>
-                  </div>
-                </div>
+        {/* Top KPI row — full width, four equal cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <KpiCard
+            icon="📋"
+            label="Your Verifications"
+            value={formatNumber(totalVerified)}
+            color="text-graphPurple"
+            loading={loading}
+          />
+          <KpiCard
+            icon="⭐"
+            label="Your Reputation"
+            value={formatNumber(repScore)}
+            color="text-credibilityGreen"
+            loading={loading}
+          />
+          <KpiCard
+            icon="🌐"
+            label="Platform Total"
+            value={formatNumber(totalPlatform || analytics?.total || 0)}
+            color="text-moderateBlue"
+            loading={loading}
+          />
+          <KpiCard
+            icon="📊"
+            label="Avg Credibility"
+            value={analytics ? `${analytics.avg_score}/100` : "—"}
+            color="text-credibilityGreen"
+            loading={loading}
+          />
+        </div>
 
-                {nextTier && (
+        {/* Main grid: profile (sidebar) + recent verifications + platform breakdown */}
+        <div className="grid lg:grid-cols-12 gap-6">
+          {/* Left — Profile + tier ladder */}
+          <div className="lg:col-span-4 space-y-6">
+            <div className="card p-6 space-y-5">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-4xl">{TIER_ICONS[tier]}</span>
                   <div>
-                    <div className="flex justify-between mb-1.5">
-                      <span className="text-xs text-secondaryText">
-                        Progress to {REPUTATION_TIER_LABELS[nextTier] ?? nextTier}
-                      </span>
-                      <span className="text-xs font-semibold text-primaryText">
-                        {repScore} / {nextThreshold}
-                      </span>
-                    </div>
-                    <div className="h-2 bg-border rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-graphPurple to-trustLavender transition-all duration-700"
-                        style={{
-                          width: `${Math.min(100, Math.max(0, progress))}%`,
-                        }}
-                      />
-                    </div>
+                    <p className="font-bold text-primaryText text-lg">
+                      {REPUTATION_TIER_LABELS[tier] ?? tier}
+                    </p>
+                    <p className="text-xs text-secondaryText">
+                      On-chain reputation
+                    </p>
                   </div>
-                )}
-              </div>
-            )}
-
-            <div className="card p-5">
-              <h3 className="font-semibold text-primaryText mb-4">Quick Stats</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-surfaceSoft rounded-xl p-3 text-center">
-                  <div className="text-xl mb-1">📋</div>
-                  <p className="text-xl font-bold text-primaryText">
-                    {formatNumber(totalVerified)}
-                  </p>
-                  <p className="text-xs text-secondaryText">Verifications</p>
                 </div>
-                <div className="bg-surfaceSoft rounded-xl p-3 text-center">
-                  <div className="text-xl mb-1">⭐</div>
-                  <p className="text-xl font-bold text-primaryText">
-                    {formatNumber(repScore)}
-                  </p>
-                  <p className="text-xs text-secondaryText">Reputation</p>
+              </div>
+
+              <div className="bg-surfaceSoft rounded-xl p-4 text-center">
+                <p className="text-4xl font-black text-graphPurple">{repScore}</p>
+                <p className="text-xs text-secondaryText mt-1">reputation points</p>
+              </div>
+
+              {nextTier && (
+                <div>
+                  <div className="flex justify-between mb-1.5">
+                    <span className="text-xs text-secondaryText">
+                      Next: {REPUTATION_TIER_LABELS[nextTier] ?? nextTier}
+                    </span>
+                    <span className="text-xs font-semibold text-primaryText">
+                      {repScore} / {nextThreshold}
+                    </span>
+                  </div>
+                  <div className="h-2 bg-border rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-graphPurple to-trustLavender transition-all duration-700"
+                      style={{
+                        width: `${Math.min(100, Math.max(0, progress))}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-2 border-t border-border">
+                <p className="text-xs font-semibold text-secondaryText mb-2 uppercase tracking-wider">
+                  Tier ladder
+                </p>
+                <div className="flex justify-between items-center">
+                  {TIER_ORDER.map((t, i) => (
+                    <div
+                      key={t}
+                      className={cn(
+                        "flex flex-col items-center gap-1 transition-all",
+                        i <= currentTierIndex ? "opacity-100" : "opacity-40"
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "text-lg",
+                          t === tier && "scale-125"
+                        )}
+                      >
+                        {TIER_ICONS[t]}
+                      </span>
+                      <span
+                        className={cn(
+                          "text-[10px]",
+                          t === tier
+                            ? "text-graphPurple font-bold"
+                            : "text-secondaryText"
+                        )}
+                      >
+                        {REPUTATION_TIER_THRESHOLDS[t]}+
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
+
+            <Link
+              href={`/profile/${address}`}
+              className="btn-secondary w-full block text-center"
+            >
+              View your public profile →
+            </Link>
           </div>
 
           {/* Middle — Recent verifications */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
+          <div className="lg:col-span-5 space-y-4">
+            <div className="flex items-center justify-between">
               <h2 className="font-bold text-primaryText text-lg">
-                Recent Verifications
+                Your Recent Verifications
               </h2>
               <Link
                 href="/history"
                 className="text-sm text-graphPurple hover:text-trustLavender transition-colors"
               >
-                View all
+                View all →
               </Link>
             </div>
 
-            {recent.length === 0 ? (
-              <div className="card p-8 text-center">
-                <div className="text-3xl mb-3">📋</div>
+            {loading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="card p-4 animate-pulse">
+                    <div className="h-4 bg-border rounded w-2/3 mb-2" />
+                    <div className="h-3 bg-border rounded w-1/3" />
+                  </div>
+                ))}
+              </div>
+            ) : recent.length === 0 ? (
+              <div className="card p-10 text-center">
+                <div className="text-4xl mb-3">📋</div>
                 <p className="text-secondaryText text-sm mb-4">
                   No verifications yet.
                 </p>
@@ -276,7 +343,7 @@ export default function DashboardPage() {
                     className="card p-4 flex items-start gap-4 hover:border-trustLavender transition-all duration-200"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-primaryText truncate">
+                      <p className="text-sm font-semibold text-primaryText line-clamp-1">
                         {r.title}
                       </p>
                       <p className="text-xs text-secondaryText mt-1">
@@ -286,7 +353,7 @@ export default function DashboardPage() {
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {r.credibility_score != null && (
                         <span
-                          className="text-sm font-bold"
+                          className="text-lg font-bold"
                           style={{
                             color:
                               r.credibility_score >= 80
@@ -313,59 +380,117 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Right — Platform analytics */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
+          {/* Right — Platform breakdown */}
+          <div className="lg:col-span-3 space-y-4">
+            <div className="flex items-center justify-between">
               <h2 className="font-bold text-primaryText text-lg">
-                Platform Analytics
+                Platform Verdicts
               </h2>
               <Link
                 href="/analytics"
                 className="text-sm text-graphPurple hover:text-trustLavender transition-colors"
               >
-                Full view
+                Full →
               </Link>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="card p-5 space-y-3">
               {[
-                {
-                  label: "Total Verifications",
-                  value: totalPlatform || analytics?.total || 0,
-                  color: "text-graphPurple",
-                  icon: "📊",
-                },
-                {
-                  label: "Avg Credibility",
-                  value: analytics ? `${analytics.avg_score}/100` : "0/100",
-                  color: "text-credibilityGreen",
-                  icon: "⭐",
-                },
-                {
-                  label: "Misleading Detected",
-                  value: analytics?.misleading ?? 0,
-                  color: "text-riskRed",
-                  icon: "⚠️",
-                },
                 {
                   label: "High Credibility",
                   value: analytics?.high_credibility ?? 0,
-                  color: "text-credibilityGreen",
-                  icon: "✅",
+                  color: "bg-credibilityGreen",
+                  textColor: "text-credibilityGreen",
                 },
-              ].map((s) => (
-                <div key={s.label} className="card p-4 text-center">
-                  <div className="text-xl mb-1">{s.icon}</div>
-                  <p className={cn("text-xl font-bold", s.color)}>{s.value}</p>
-                  <p className="text-xs text-secondaryText mt-1">{s.label}</p>
-                </div>
-              ))}
+                {
+                  label: "Moderate",
+                  value: analytics?.moderate_credibility ?? 0,
+                  color: "bg-moderateBlue",
+                  textColor: "text-moderateBlue",
+                },
+                {
+                  label: "Low Credibility",
+                  value: analytics?.low_credibility ?? 0,
+                  color: "bg-warningAmber",
+                  textColor: "text-warningAmber",
+                },
+                {
+                  label: "Misleading",
+                  value: analytics?.misleading ?? 0,
+                  color: "bg-riskRed",
+                  textColor: "text-riskRed",
+                },
+                {
+                  label: "Unverified",
+                  value: analytics?.unverified ?? 0,
+                  color: "bg-graphPurple",
+                  textColor: "text-graphPurple",
+                },
+              ].map((row) => {
+                const total = analytics?.total || 1;
+                const pct = Math.round((row.value / total) * 100);
+                return (
+                  <div key={row.label}>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs text-secondaryText">
+                        {row.label}
+                      </span>
+                      <span
+                        className={cn("text-xs font-bold", row.textColor)}
+                      >
+                        {row.value}
+                      </span>
+                    </div>
+                    <div className="h-1.5 bg-border rounded-full overflow-hidden">
+                      <div
+                        className={cn(
+                          "h-full rounded-full transition-all duration-700",
+                          row.color
+                        )}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
       </main>
 
       <Footer />
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// Reusable KPI tile
+// ──────────────────────────────────────────────────────────────
+
+function KpiCard({
+  icon,
+  label,
+  value,
+  color,
+  loading,
+}: {
+  icon: string;
+  label: string;
+  value: string | number;
+  color: string;
+  loading: boolean;
+}) {
+  return (
+    <div className="card p-5 flex flex-col items-center text-center">
+      <div className="text-2xl mb-2">{icon}</div>
+      {loading ? (
+        <div className="h-7 w-16 bg-border rounded animate-pulse mb-2" />
+      ) : (
+        <p className={cn("text-2xl font-bold leading-none mb-2", color)}>
+          {value}
+        </p>
+      )}
+      <p className="text-xs text-secondaryText leading-tight">{label}</p>
     </div>
   );
 }
