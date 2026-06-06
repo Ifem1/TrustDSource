@@ -1,0 +1,157 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: #eeccff;
+    --surface: #ffffff;
+    --surface-soft: #f7f0ff;
+    --primary-text: #241c35;
+    --secondary-text: #54486b;
+    --border: #d7b5ff;
+    --graph-purple: #9d4edd;
+    --trust-lavender: #c77dff;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--primary-text);
+    min-height: 100vh;
+  }
+
+  ::selection {
+    background-color: #c77dff33;
+    color: #241c35;
+  }
+}
+
+@layer components {
+  .glass {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(215, 181, 255, 0.4);
+  }
+
+  .glass-dark {
+    background: rgba(36, 28, 53, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(157, 78, 221, 0.3);
+  }
+
+  .card {
+    @apply bg-surface rounded-2xl border border-border shadow-card;
+  }
+
+  .card-soft {
+    @apply bg-surfaceSoft rounded-2xl border border-border;
+  }
+
+  .btn-primary {
+    @apply bg-graphPurple text-white font-semibold px-6 py-3 rounded-xl
+           hover:bg-trustLavender transition-all duration-200
+           disabled:opacity-50 disabled:cursor-not-allowed
+           shadow-glow-purple hover:shadow-none;
+  }
+
+  .btn-secondary {
+    @apply bg-surface text-primaryText font-semibold px-6 py-3 rounded-xl
+           border border-border hover:border-trustLavender hover:bg-surfaceSoft
+           transition-all duration-200;
+  }
+
+  .btn-ghost {
+    @apply text-secondaryText font-medium px-4 py-2 rounded-lg
+           hover:text-primaryText hover:bg-surfaceSoft transition-all duration-200;
+  }
+
+  .input {
+    @apply w-full bg-surface border border-border rounded-xl px-4 py-3
+           text-primaryText placeholder-secondaryText
+           focus:outline-none focus:ring-2 focus:ring-trustLavender focus:border-transparent
+           transition-all duration-200;
+  }
+
+  .label {
+    @apply text-sm font-semibold text-primaryText mb-1.5 block;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border;
+  }
+
+  .score-ring {
+    filter: drop-shadow(0 0 8px currentColor);
+  }
+
+  .terminal-text {
+    @apply font-mono text-sm text-graphPurple;
+  }
+
+  .section-title {
+    @apply text-3xl md:text-4xl font-bold text-primaryText tracking-tight;
+  }
+
+  .section-subtitle {
+    @apply text-lg text-secondaryText mt-3;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    background: linear-gradient(135deg, #9d4edd 0%, #c77dff 50%, #e0aaff 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .bg-mesh {
+    background-image:
+      radial-gradient(at 40% 20%, rgba(157, 78, 221, 0.12) 0px, transparent 50%),
+      radial-gradient(at 80% 0%, rgba(199, 125, 255, 0.08) 0px, transparent 50%),
+      radial-gradient(at 0% 50%, rgba(157, 78, 221, 0.06) 0px, transparent 50%);
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #d7b5ff #f7f0ff;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: #f7f0ff;
+    border-radius: 3px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: #d7b5ff;
+    border-radius: 3px;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.4s ease-out forwards;
+  }
+
+  .animate-scan-line {
+    animation: scan 2s linear infinite;
+  }
+}
