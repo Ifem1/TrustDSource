@@ -469,6 +469,32 @@ export async function runVerificationPipeline(
       ? { ...finalReport, ...reportRes.data }
       : finalReport;
 
+  // Best-effort: mirror this verification into the Supabase index
+  // so Explore / History / Leaderboard pages can show it.
+  fetch("/api/sync-verification", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      report_id: reportId,
+      wallet: walletAddress,
+      title: formData.title,
+      url: formData.url,
+      category: formData.category,
+      verdict: mergedReport.verdict,
+      credibility_score: mergedReport.credibility_score,
+      source_quality: mergedReport.source_quality,
+      evidence_strength: mergedReport.evidence_strength,
+      consistency_score: mergedReport.consistency_score,
+      bias_risk: mergedReport.bias_risk,
+      misinformation_risk: mergedReport.misinformation_risk,
+      confidence: Number(mergedReport.confidence ?? 0),
+      reputation_at_time: profileRes.data?.reputation_score ?? 0,
+      reputation_tier_at_time: profileRes.data?.reputation_tier ?? "new",
+      ai_summary: mergedReport.ai_summary,
+      created_at: mergedReport.created_at,
+    }),
+  }).catch(() => {});
+
   const finalState: PipelineState = {
     ...state,
     step: "complete",

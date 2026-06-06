@@ -4,47 +4,71 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { createClient } from "@/lib/supabase/client";
-import { VERDICT_BG, VERDICT_LABELS, CATEGORY_LABELS } from "@/constants";
+import {
+  VERDICT_BG,
+  VERDICT_LABELS,
+  CATEGORY_LABELS,
+} from "@/constants";
 import { formatTimeAgo, cn } from "@/lib/utils";
-import type { VerificationFull, ContentCategory, VerdictType } from "@/types";
 
-const CATEGORIES: ContentCategory[] = [
-  "news", "social", "research", "public_statement",
-  "blog", "press_release", "breaking_news", "other",
+interface IndexRow {
+  report_id: string;
+  wallet: string;
+  title: string;
+  category: string | null;
+  verdict: string | null;
+  credibility_score: number | null;
+  created_at: string;
+}
+
+const CATEGORIES = [
+  "news",
+  "social",
+  "research",
+  "public_statement",
+  "blog",
+  "press_release",
+  "breaking_news",
+  "other",
 ];
 
-const VERDICTS: VerdictType[] = [
-  "HIGH_CREDIBILITY", "MODERATE_CREDIBILITY", "LOW_CREDIBILITY",
-  "MISLEADING", "UNVERIFIED",
+const VERDICTS = [
+  "HIGH_CREDIBILITY",
+  "MODERATE_CREDIBILITY",
+  "LOW_CREDIBILITY",
+  "MISLEADING",
+  "UNVERIFIED",
 ];
+
+const PAGE_SIZE = 12;
 
 export default function ExplorePage() {
-  const [verifications, setVerifications] = useState<VerificationFull[]>([]);
+  const [rows, setRows] = useState<IndexRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [offline, setOffline] = useState(false);
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState<ContentCategory | "">("");
-  const [verdict, setVerdict] = useState<VerdictType | "">("");
+  const [category, setCategory] = useState<string>("");
+  const [verdict, setVerdict] = useState<string>("");
   const [page, setPage] = useState(0);
-  const PAGE_SIZE = 12;
 
   const load = useCallback(async () => {
     setLoading(true);
-    const supabase = createClient();
+    const params = new URLSearchParams();
+    params.set("limit", String(PAGE_SIZE));
+    params.set("offset", String(page * PAGE_SIZE));
+    if (search) params.set("q", search);
+    if (category) params.set("category", category);
+    if (verdict) params.set("verdict", verdict);
 
-    let query = supabase
-      .from("verification_full")
-      .select("*")
-      .eq("status", "complete")
-      .order("created_at", { ascending: false })
-      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
-
-    if (search) query = query.ilike("title", `%${search}%`);
-    if (category) query = query.eq("category", category);
-    if (verdict) query = query.eq("verdict", verdict);
-
-    const { data } = await query;
-    setVerifications(data as unknown as VerificationFull[] ?? []);
+    try {
+      const res = await fetch(`/api/index?${params}`);
+      const json = await res.json();
+      setRows(json.data ?? []);
+      setOffline(Boolean(json.offline));
+    } catch {
+      setRows([]);
+      setOffline(true);
+    }
     setLoading(false);
   }, [search, category, verdict, page]);
 
@@ -64,38 +88,66 @@ export default function ExplorePage() {
           </p>
         </div>
 
+        {offline && (
+          <div className="card p-4 mb-6 border-warningAmber bg-amber-50">
+            <p className="text-sm text-amber-800">
+              <strong>Indexing offline.</strong> The search index isn&apos;t
+              configured. New verifications still write on-chain — individual
+              reports are accessible by their report ID.
+            </p>
+          </div>
+        )}
+
         {/* Filters */}
         <div className="card p-4 mb-8 flex flex-wrap gap-3 items-center">
           <input
             type="text"
             value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(0);
+            }}
             className="input flex-1 min-w-48"
-            placeholder="Search reports..."
+            placeholder="Search by title..."
           />
           <select
             value={category}
-            onChange={(e) => { setCategory(e.target.value as ContentCategory | ""); setPage(0); }}
+            onChange={(e) => {
+              setCategory(e.target.value);
+              setPage(0);
+            }}
             className="input w-auto"
           >
             <option value="">All Categories</option>
             {CATEGORIES.map((c) => (
-              <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>
+              <option key={c} value={c}>
+                {CATEGORY_LABELS[c] ?? c}
+              </option>
             ))}
           </select>
           <select
             value={verdict}
-            onChange={(e) => { setVerdict(e.target.value as VerdictType | ""); setPage(0); }}
+            onChange={(e) => {
+              setVerdict(e.target.value);
+              setPage(0);
+            }}
             className="input w-auto"
           >
             <option value="">All Verdicts</option>
             {VERDICTS.map((v) => (
-              <option key={v} value={v}>{VERDICT_LABELS[v]}</option>
+              <option key={v} value={v}>
+                {VERDICT_LABELS[v] ?? v}
+              </option>
             ))}
           </select>
           {(search || category || verdict) && (
             <button
-              onClick={() => { setSearch(""); setCategory(""); setVerdict(""); setPage(0); }}
+              onClick={() => {
+                setSearch("");
+                setCategory("");
+                setVerdict("");
+                setPage(0);
+              }}
               className="btn-ghost text-sm"
             >
               Clear
@@ -113,12 +165,16 @@ export default function ExplorePage() {
               </div>
             ))}
           </div>
-        ) : verifications.length === 0 ? (
+        ) : rows.length === 0 ? (
           <div className="card p-12 text-center max-w-md mx-auto">
             <div className="text-4xl mb-4">🔍</div>
-            <h3 className="font-bold text-primaryText text-lg mb-2">No reports found</h3>
+            <h3 className="font-bold text-primaryText text-lg mb-2">
+              No reports found
+            </h3>
             <p className="text-secondaryText text-sm mb-6">
-              Try adjusting your filters or be the first to verify content.
+              {search || category || verdict
+                ? "Try adjusting your filters."
+                : "Be the first to verify content."}
             </p>
             <Link href="/verify" className="btn-primary">
               Start Verifying
@@ -127,52 +183,52 @@ export default function ExplorePage() {
         ) : (
           <>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {verifications.map((v) => (
+              {rows.map((r) => (
                 <Link
-                  key={v.id}
-                  href={`/report/${v.id}`}
+                  key={r.report_id}
+                  href={`/report/${r.report_id}`}
                   className="card p-5 flex flex-col gap-4 hover:border-trustLavender hover:shadow-glow-purple transition-all duration-200 group"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <span className="badge bg-surfaceSoft text-secondaryText border-border text-xs">
-                      {CATEGORY_LABELS[v.category] || v.category}
-                    </span>
-                    {v.verdict && (
-                      <span className={cn("badge text-xs", VERDICT_BG[v.verdict])}>
-                        {VERDICT_LABELS[v.verdict]}
+                    {r.category && (
+                      <span className="badge bg-surfaceSoft text-secondaryText border-border text-xs">
+                        {CATEGORY_LABELS[r.category] ?? r.category}
+                      </span>
+                    )}
+                    {r.verdict && VERDICT_BG[r.verdict] && (
+                      <span className={cn("badge text-xs", VERDICT_BG[r.verdict])}>
+                        {VERDICT_LABELS[r.verdict] ?? r.verdict}
                       </span>
                     )}
                   </div>
 
                   <h3 className="font-semibold text-primaryText text-sm leading-snug line-clamp-2 group-hover:text-graphPurple transition-colors">
-                    {v.title}
+                    {r.title}
                   </h3>
 
                   <div className="flex items-center justify-between mt-auto">
                     <span className="text-xs text-secondaryText">
-                      {formatTimeAgo(v.created_at)}
+                      {formatTimeAgo(r.created_at)}
                     </span>
-                    {v.credibility_score != null && (
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-bold"
-                          style={{
-                            borderColor:
-                              v.credibility_score >= 80
-                                ? "#16a34a"
-                                : v.credibility_score >= 55
-                                ? "#3b82f6"
-                                : "#f59e0b",
-                            color:
-                              v.credibility_score >= 80
-                                ? "#16a34a"
-                                : v.credibility_score >= 55
-                                ? "#3b82f6"
-                                : "#f59e0b",
-                          }}
-                        >
-                          {v.credibility_score}
-                        </div>
+                    {r.credibility_score != null && (
+                      <div
+                        className="w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-bold"
+                        style={{
+                          borderColor:
+                            r.credibility_score >= 80
+                              ? "#16a34a"
+                              : r.credibility_score >= 55
+                              ? "#3b82f6"
+                              : "#f59e0b",
+                          color:
+                            r.credibility_score >= 80
+                              ? "#16a34a"
+                              : r.credibility_score >= 55
+                              ? "#3b82f6"
+                              : "#f59e0b",
+                        }}
+                      >
+                        {r.credibility_score}
                       </div>
                     )}
                   </div>
@@ -191,7 +247,7 @@ export default function ExplorePage() {
               <span className="text-sm text-secondaryText">Page {page + 1}</span>
               <button
                 onClick={() => setPage((p) => p + 1)}
-                disabled={verifications.length < PAGE_SIZE}
+                disabled={rows.length < PAGE_SIZE}
                 className="btn-secondary"
               >
                 Next
