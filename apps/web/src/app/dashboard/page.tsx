@@ -162,12 +162,14 @@ export default function DashboardPage() {
     <div className="min-h-screen flex flex-col bg-background bg-mesh">
       <Navbar />
 
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 w-full max-w-[1600px] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-12 py-8 lg:py-12">
         {/* Header */}
-        <div className="flex items-start justify-between mb-8 flex-wrap gap-4">
+        <div className="flex items-start justify-between mb-10 flex-wrap gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-primaryText">Dashboard</h1>
-            <p className="text-secondaryText mt-1">
+            <h1 className="text-4xl lg:text-5xl font-bold text-primaryText tracking-tight">
+              Dashboard
+            </h1>
+            <p className="text-secondaryText mt-2 text-base">
               On-chain verification activity for{" "}
               <span className="font-mono text-xs">
                 {truncateAddress(address ?? "")}
@@ -180,7 +182,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Top KPI row — full width, four equal cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-5 lg:gap-6 mb-10">
           <KpiCard
             icon="📋"
             label="Your Verifications"
@@ -212,7 +214,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Main grid: profile (sidebar) + recent verifications + platform breakdown */}
-        <div className="grid lg:grid-cols-12 gap-6">
+        <div className="grid lg:grid-cols-12 gap-6 lg:gap-8">
           {/* Left — Profile + tier ladder */}
           <div className="lg:col-span-4 space-y-6">
             <div className="card p-6 space-y-5">
@@ -481,16 +483,16 @@ function KpiCard({
   loading: boolean;
 }) {
   return (
-    <div className="card p-5 flex flex-col items-center text-center">
-      <div className="text-2xl mb-2">{icon}</div>
+    <div className="card p-6 lg:p-7 flex flex-col items-center text-center">
+      <div className="text-3xl mb-3">{icon}</div>
       {loading ? (
-        <div className="h-7 w-16 bg-border rounded animate-pulse mb-2" />
+        <div className="h-9 w-20 bg-border rounded animate-pulse mb-2" />
       ) : (
-        <p className={cn("text-2xl font-bold leading-none mb-2", color)}>
+        <p className={cn("text-3xl lg:text-4xl font-bold leading-none mb-2", color)}>
           {value}
         </p>
       )}
-      <p className="text-xs text-secondaryText leading-tight">{label}</p>
+      <p className="text-sm text-secondaryText leading-tight mt-1">{label}</p>
     </div>
   );
 }
