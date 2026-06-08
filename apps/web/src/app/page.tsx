@@ -16,14 +16,7 @@ export default function HomePage() {
         </div>
 
         <div className="max-w-5xl mx-auto text-center relative z-10">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-surface border border-border mb-8 shadow-card">
-            <div className="w-2 h-2 rounded-full bg-credibilityGreen animate-pulse" />
-            <span className="text-xs font-semibold text-secondaryText tracking-wide uppercase">
-              Powered by GenLayer Intelligence
-            </span>
-          </div>
-
-          <h1 className="text-5xl md:text-7xl font-black text-primaryText tracking-tight leading-none mb-6">
+          <h1 className="text-5xl md:text-7xl font-black text-primaryText tracking-tight leading-none mb-6 mt-4">
             Verify. Trace.{" "}
             <span className="text-gradient">Trust.</span>
           </h1>
@@ -31,7 +24,7 @@ export default function HomePage() {
           <p className="text-xl md:text-2xl text-secondaryText max-w-2xl mx-auto mb-12 leading-relaxed">
             Submit any article, tweet, or claim. GenLayer&apos;s AI consensus
             extracts facts, discovers sources, and returns an immutable
-            credibility score — stored on-chain forever.
+            credibility score stored on-chain forever.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
@@ -89,7 +82,7 @@ export default function HomePage() {
                 "Conflicting information everywhere",
                 "Sources are difficult to compare",
                 "Fact checking is slow",
-                "Trust is subjective — no proof",
+                "Trust is subjective, with no proof",
               ].map((item) => (
                 <div
                   key={item}
