@@ -10,6 +10,7 @@ import {
   CATEGORY_LABELS,
 } from "@/constants";
 import { formatTimeAgo, cn } from "@/lib/utils";
+import { checkIndexHealth, runResync } from "@/lib/trustdsource/sync";
 
 interface IndexRow {
   report_id: string;
@@ -50,6 +51,11 @@ export default function ExplorePage() {
   const [category, setCategory] = useState<string>("");
   const [verdict, setVerdict] = useState<string>("");
   const [page, setPage] = useState(0);
+  const [syncing, setSyncing] = useState(false);
+  const [chainAhead, setChainAhead] = useState<{
+    contract: number;
+    index: number;
+  } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -75,6 +81,53 @@ export default function ExplorePage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Self-healing: if the contract has more reports than the index,
+  // auto-trigger a resync the first time the page loads.
+  useEffect(() => {
+    if (loading || offline || syncing) return;
+    let cancelled = false;
+
+    async function check() {
+      const health = await checkIndexHealth();
+      if (cancelled) return;
+      if (!health.needsSync) {
+        setChainAhead(null);
+        return;
+      }
+      setChainAhead({
+        contract: health.contractTotal,
+        index: health.indexTotal,
+      });
+
+      // Auto-trigger only when the index is genuinely behind on initial load,
+      // not for every search/filter change.
+      if (rows.length === 0 && page === 0 && !search && !category && !verdict) {
+        setSyncing(true);
+        const result = await runResync(25);
+        if (cancelled) return;
+        setSyncing(false);
+        if (result.indexed > 0) {
+          await load();
+          setChainAhead(null);
+        }
+      }
+    }
+
+    check();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
+  async function handleManualSync() {
+    setSyncing(true);
+    await runResync(25);
+    setSyncing(false);
+    await load();
+    setChainAhead(null);
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-background bg-mesh">
@@ -166,20 +219,48 @@ export default function ExplorePage() {
             ))}
           </div>
         ) : rows.length === 0 ? (
-          <div className="card p-12 text-center max-w-md mx-auto">
-            <div className="text-4xl mb-4">🔍</div>
-            <h3 className="font-bold text-primaryText text-lg mb-2">
-              No reports found
-            </h3>
-            <p className="text-secondaryText text-sm mb-6">
-              {search || category || verdict
-                ? "Try adjusting your filters."
-                : "Be the first to verify content."}
-            </p>
-            <Link href="/verify" className="btn-primary">
-              Start Verifying
-            </Link>
-          </div>
+          chainAhead && chainAhead.contract > chainAhead.index ? (
+            <div className="card p-12 text-center max-w-lg mx-auto">
+              <div className="text-4xl mb-4">{syncing ? "⏳" : "🔄"}</div>
+              <h3 className="font-bold text-primaryText text-lg mb-2">
+                {syncing
+                  ? "Indexing latest reports…"
+                  : "Index catching up"}
+              </h3>
+              <p className="text-secondaryText text-sm mb-6">
+                {chainAhead.contract} verification
+                {chainAhead.contract === 1 ? "" : "s"} exist on-chain,{" "}
+                {chainAhead.index} indexed so far. The search index pulls from
+                the contract — this takes a moment for older reports.
+              </p>
+              {!syncing && (
+                <button onClick={handleManualSync} className="btn-primary">
+                  Sync now
+                </button>
+              )}
+              {syncing && (
+                <div className="flex items-center justify-center gap-2 text-sm text-graphPurple">
+                  <span className="w-4 h-4 border-2 border-graphPurple/30 border-t-graphPurple rounded-full animate-spin" />
+                  Reading from chain…
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="card p-12 text-center max-w-md mx-auto">
+              <div className="text-4xl mb-4">🔍</div>
+              <h3 className="font-bold text-primaryText text-lg mb-2">
+                No reports found
+              </h3>
+              <p className="text-secondaryText text-sm mb-6">
+                {search || category || verdict
+                  ? "Try adjusting your filters."
+                  : "Be the first to verify content."}
+              </p>
+              <Link href="/verify" className="btn-primary">
+                Start Verifying
+              </Link>
+            </div>
+          )
         ) : (
           <>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">

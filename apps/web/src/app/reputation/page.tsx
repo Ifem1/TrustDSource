@@ -12,6 +12,7 @@ import {
   REPUTATION_TIER_THRESHOLDS,
 } from "@/constants";
 import { truncateAddress, formatNumber, cn } from "@/lib/utils";
+import { checkIndexHealth, runResync } from "@/lib/trustdsource/sync";
 
 const TIER_ICONS: Record<string, string> = {
   new: "🌱",
@@ -44,6 +45,7 @@ export default function ReputationPage() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
   const [leaderboardOffline, setLeaderboardOffline] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,17 +61,44 @@ export default function ReputationPage() {
         );
       }
 
+      const loadLeaderboard = async () => {
+        try {
+          const r = await fetch("/api/leaderboard?limit=50");
+          const json = await r.json();
+          return {
+            data: (json.data ?? []) as LeaderboardRow[],
+            offline: Boolean(json.offline),
+          };
+        } catch {
+          return { data: [] as LeaderboardRow[], offline: true };
+        }
+      };
+
       tasks.push(
-        fetch("/api/leaderboard?limit=50")
-          .then((r) => r.json())
-          .then((json) => {
+        loadLeaderboard().then(async ({ data, offline }) => {
+          if (cancelled) return;
+          setLeaderboardOffline(offline);
+
+          if (data.length > 0 || offline) {
+            setLeaderboard(data);
+            return;
+          }
+
+          // Empty leaderboard but the chain may have data — auto-heal
+          const health = await checkIndexHealth();
+          if (cancelled) return;
+          if (health.needsSync) {
+            setSyncing(true);
+            await runResync(25);
             if (cancelled) return;
-            setLeaderboard(json.data ?? []);
-            setLeaderboardOffline(Boolean(json.offline));
-          })
-          .catch(() => {
-            if (!cancelled) setLeaderboardOffline(true);
-          })
+            const refreshed = await loadLeaderboard();
+            if (cancelled) return;
+            setLeaderboard(refreshed.data);
+            setSyncing(false);
+          } else {
+            setLeaderboard(data);
+          }
+        })
       );
 
       await Promise.all(tasks);
@@ -208,6 +237,16 @@ export default function ReputationPage() {
                       <p className="text-xs text-secondaryText">
                         Verifications still write on-chain. Once an index is
                         running, contributors will appear here.
+                      </p>
+                    </>
+                  ) : syncing ? (
+                    <>
+                      <div className="text-3xl mb-3">⏳</div>
+                      <p className="text-primaryText text-sm font-semibold mb-2">
+                        Indexing leaderboard…
+                      </p>
+                      <p className="text-xs text-secondaryText">
+                        Reading contributors from the contract. Hang tight.
                       </p>
                     </>
                   ) : (

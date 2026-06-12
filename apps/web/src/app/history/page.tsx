@@ -9,6 +9,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { getRecentReports } from "@/lib/genlayer/pipeline";
 import { VERDICT_BG, VERDICT_LABELS, CATEGORY_LABELS } from "@/constants";
 import { cn, formatTimeAgo } from "@/lib/utils";
+import { checkIndexHealth, runResync } from "@/lib/trustdsource/sync";
 
 interface IndexRow {
   report_id: string;
@@ -23,6 +24,30 @@ export default function HistoryPage() {
   const { address, isConnected } = useWallet();
   const [rows, setRows] = useState<IndexRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+
+  async function fetchHistory(addr: string): Promise<IndexRow[]> {
+    try {
+      const res = await fetch(
+        `/api/index?wallet=${encodeURIComponent(addr)}&limit=50`
+      );
+      const json = await res.json();
+      if (Array.isArray(json.data) && json.data.length > 0) {
+        return json.data as IndexRow[];
+      }
+    } catch {}
+    const local = getRecentReports().filter(
+      (r) => !r.wallet || r.wallet === addr
+    );
+    return local.map((r) => ({
+      report_id: r.reportId,
+      title: r.title,
+      category: null,
+      verdict: r.verdict ?? null,
+      credibility_score: r.credibility_score ?? null,
+      created_at: new Date(r.timestamp).toISOString(),
+    }));
+  }
 
   useEffect(() => {
     if (!address) {
@@ -31,37 +56,25 @@ export default function HistoryPage() {
     }
     let cancelled = false;
     async function load() {
-      // Try the index first (works across devices)
-      try {
-        const res = await fetch(
-          `/api/index?wallet=${encodeURIComponent(address!)}&limit=50`
-        );
-        const json = await res.json();
-        if (
-          !cancelled &&
-          Array.isArray(json.data) &&
-          json.data.length > 0
-        ) {
-          setRows(json.data as IndexRow[]);
-          setLoading(false);
-          return;
-        }
-      } catch {}
-
-      // Fallback to localStorage (current browser only)
+      const rowsFound = await fetchHistory(address!);
       if (cancelled) return;
-      const local = getRecentReports().filter((r) => !r.wallet || r.wallet === address);
-      setRows(
-        local.map((r) => ({
-          report_id: r.reportId,
-          title: r.title,
-          category: null,
-          verdict: r.verdict ?? null,
-          credibility_score: r.credibility_score ?? null,
-          created_at: new Date(r.timestamp).toISOString(),
-        }))
-      );
+      setRows(rowsFound);
       setLoading(false);
+
+      // If history is empty but the chain has reports, auto-heal
+      if (rowsFound.length === 0) {
+        const health = await checkIndexHealth();
+        if (cancelled) return;
+        if (health.needsSync) {
+          setSyncing(true);
+          await runResync(25);
+          if (cancelled) return;
+          const refreshed = await fetchHistory(address!);
+          if (cancelled) return;
+          setRows(refreshed);
+          setSyncing(false);
+        }
+      }
     }
     load();
     return () => {
@@ -113,15 +126,27 @@ export default function HistoryPage() {
             ))}
           </div>
         ) : rows.length === 0 ? (
-          <div className="card p-8 text-center">
-            <div className="text-3xl mb-3">📋</div>
-            <p className="text-secondaryText text-sm mb-4">
-              No verifications yet.
-            </p>
-            <Link href="/verify" className="btn-primary inline-block">
-              Start Verifying
-            </Link>
-          </div>
+          syncing ? (
+            <div className="card p-8 text-center">
+              <div className="text-3xl mb-3">⏳</div>
+              <p className="text-primaryText text-sm font-semibold mb-2">
+                Indexing your verifications…
+              </p>
+              <p className="text-secondaryText text-xs">
+                Reading from the contract. This usually finishes in a few seconds.
+              </p>
+            </div>
+          ) : (
+            <div className="card p-8 text-center">
+              <div className="text-3xl mb-3">📋</div>
+              <p className="text-secondaryText text-sm mb-4">
+                No verifications yet.
+              </p>
+              <Link href="/verify" className="btn-primary inline-block">
+                Start Verifying
+              </Link>
+            </div>
+          )
         ) : (
           <div className="space-y-3">
             {rows.map((r) => (

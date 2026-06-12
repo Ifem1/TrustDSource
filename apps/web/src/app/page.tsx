@@ -2,6 +2,9 @@ import Link from "next/link";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { CredibilityGauge } from "@/components/ui/CredibilityGauge";
+import { HeroReportPreview } from "@/components/landing/HeroReportPreview";
+import { AnimatedPipeline } from "@/components/landing/AnimatedPipeline";
+import { AnimatedCounter } from "@/components/landing/AnimatedCounter";
 
 export default function HomePage() {
   return (
@@ -9,36 +12,85 @@ export default function HomePage() {
       <Navbar />
 
       {/* HERO */}
-      <section className="relative flex-1 flex items-center justify-center min-h-[90vh] overflow-hidden px-4">
+      <section className="relative flex-1 flex items-center min-h-[88vh] overflow-hidden px-4 sm:px-6 lg:px-10 xl:px-12 py-12 lg:py-16">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-graphPurple/8 rounded-full blur-3xl" />
-          <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-trustLavender/8 rounded-full blur-3xl" />
+          <div className="absolute top-1/4 left-1/4 w-[36rem] h-[36rem] bg-graphPurple/10 rounded-full blur-3xl animate-pulse-slow" />
+          <div className="absolute bottom-1/4 right-1/4 w-[30rem] h-[30rem] bg-trustLavender/10 rounded-full blur-3xl" />
         </div>
 
-        <div className="max-w-5xl mx-auto text-center relative z-10">
-          <h1 className="text-5xl md:text-7xl font-black text-primaryText tracking-tight leading-none mb-6 mt-4">
-            Verify. Trace.{" "}
-            <span className="text-gradient">Trust.</span>
-          </h1>
+        <div className="w-full max-w-[1600px] 2xl:max-w-[1800px] mx-auto relative z-10">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+            {/* Left — copy */}
+            <div>
+              <h1 className="text-5xl md:text-6xl xl:text-7xl font-black text-primaryText tracking-tight leading-[1.05] mb-6">
+                Verify. Trace.{" "}
+                <span className="text-gradient">Trust.</span>
+              </h1>
 
-          <p className="text-xl md:text-2xl text-secondaryText max-w-2xl mx-auto mb-12 leading-relaxed">
-            Submit any article, tweet, or claim. GenLayer&apos;s AI consensus
-            extracts facts, discovers sources, and returns an immutable
-            credibility score stored on-chain forever.
-          </p>
+              <p className="text-xl text-secondaryText max-w-xl mb-10 leading-relaxed">
+                Submit any article, tweet, or claim. GenLayer&apos;s AI consensus
+                extracts facts, discovers sources, and returns an immutable
+                credibility score stored on-chain forever.
+              </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
-            <Link href="/verify" className="btn-primary text-base px-8 py-4 w-full sm:w-auto">
-              Start Verifying
-            </Link>
-            <Link href="/explore" className="btn-secondary text-base px-8 py-4 w-full sm:w-auto">
-              Explore Reports
-            </Link>
+              <div className="flex flex-col sm:flex-row items-start gap-3 mb-10">
+                <Link
+                  href="/verify"
+                  className="btn-primary text-base px-8 py-4 w-full sm:w-auto"
+                >
+                  Start Verifying
+                </Link>
+                <Link
+                  href="/explore"
+                  className="btn-secondary text-base px-8 py-4 w-full sm:w-auto"
+                >
+                  Explore Reports
+                </Link>
+              </div>
+
+              {/* Animated platform stats */}
+              <div className="grid grid-cols-3 gap-4 max-w-md">
+                <div className="card p-4 text-center">
+                  <p className="text-2xl font-bold text-graphPurple">
+                    <AnimatedCounter to={5} />+
+                  </p>
+                  <p className="text-xs text-secondaryText mt-1">
+                    Verifications
+                  </p>
+                </div>
+                <div className="card p-4 text-center">
+                  <p className="text-2xl font-bold text-credibilityGreen">
+                    <AnimatedCounter to={100} suffix="%" />
+                  </p>
+                  <p className="text-xs text-secondaryText mt-1">On-chain</p>
+                </div>
+                <div className="card p-4 text-center">
+                  <p className="text-2xl font-bold text-moderateBlue">
+                    <AnimatedCounter to={7} />
+                  </p>
+                  <p className="text-xs text-secondaryText mt-1">
+                    Pipeline steps
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Right — live animated report preview */}
+            <div className="flex justify-center lg:justify-end">
+              <HeroReportPreview />
+            </div>
           </div>
 
-          <div className="grid grid-cols-3 md:grid-cols-5 gap-4 max-w-2xl mx-auto">
+          {/* Sample score gauges row */}
+          <div className="mt-16 grid grid-cols-3 md:grid-cols-5 gap-4 max-w-3xl mx-auto">
             {[87, 34, 72, 95, 21].map((score, i) => (
-              <div key={i} className="glass rounded-2xl p-4 flex flex-col items-center gap-2">
+              <div
+                key={i}
+                className="glass rounded-2xl p-4 flex flex-col items-center gap-2"
+                style={{
+                  animation: `slideUp 0.6s ease-out ${i * 0.1}s backwards`,
+                }}
+              >
                 <CredibilityGauge score={score} size="sm" showLabel={false} />
                 <span className="text-xs text-secondaryText">
                   {score >= 80
@@ -140,60 +192,7 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-5 gap-4">
-            {[
-              {
-                step: "01",
-                title: "Submit",
-                desc: "Submit any article, tweet, or claim with a source URL",
-                icon: "📥",
-              },
-              {
-                step: "02",
-                title: "Snapshot",
-                desc: "Content locked immutably on GenLayer blockchain",
-                icon: "🔒",
-              },
-              {
-                step: "03",
-                title: "Extract",
-                desc: "AI extracts all verifiable factual claims",
-                icon: "🔍",
-              },
-              {
-                step: "04",
-                title: "Discover",
-                desc: "Primary and independent sources searched and ranked",
-                icon: "🌐",
-              },
-              {
-                step: "05",
-                title: "Verdict",
-                desc: "GenLayer consensus delivers credibility score",
-                icon: "⚖️",
-              },
-            ].map((step, i) => (
-              <div key={i} className="relative">
-                <div className="card p-5 text-center h-full">
-                  <div className="text-3xl mb-3">{step.icon}</div>
-                  <div className="text-xs font-mono text-graphPurple mb-2">
-                    {step.step}
-                  </div>
-                  <h3 className="font-bold text-primaryText mb-2">{step.title}</h3>
-                  <p className="text-xs text-secondaryText leading-relaxed">
-                    {step.desc}
-                  </p>
-                </div>
-                {i < 4 && (
-                  <div className="hidden md:block absolute top-1/2 -right-2 transform -translate-y-1/2 z-10">
-                    <svg className="w-4 h-4 text-border" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+          <AnimatedPipeline />
         </div>
       </section>
 
