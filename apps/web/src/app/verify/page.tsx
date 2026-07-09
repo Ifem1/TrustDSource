@@ -59,6 +59,7 @@ export default function VerifyPage() {
         content: form.content,
         claimSummary: form.claim_summary ?? "",
         category: form.category,
+        evidenceUrls: form.evidence_urls ?? "",
       },
       updateState,
       { mode }
@@ -79,6 +80,7 @@ export default function VerifyPage() {
         content: lastForm.content,
         claimSummary: lastForm.claim_summary ?? "",
         category: lastForm.category,
+        evidenceUrls: lastForm.evidence_urls ?? "",
       },
       { mode: pipeline.mode }
     );

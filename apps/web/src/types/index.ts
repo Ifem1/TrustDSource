@@ -184,6 +184,7 @@ export interface SubmitContentForm {
   content: string;
   claim_summary: string;
   category: ContentCategory;
+  evidence_urls?: string;
 }
 
 export interface GenLayerReport {

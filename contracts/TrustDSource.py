@@ -21,7 +21,7 @@ class TrustDSourceUnified(gl.Contract):
     Design:
     - submit_content creates the on-chain snapshot.
     - extract_claims is deterministic and fast. No AI here.
-    - analyse_sources can use GenLayer AI but has fallback.
+    - analyse_sources fetches evidence URLs through GenLayer web access.
     - analyse_credibility can use GenLayer AI but has fallback.
     - calculate_credibility is deterministic.
     - store_report stores verification hash and analytics.
@@ -1002,6 +1002,137 @@ class TrustDSourceUnified(gl.Contract):
             "verification_note": "Fallback evidence is limited to the user-submitted URL and content snapshot.",
         }]
 
+    def _parse_evidence_urls(self, raw_text: str, submitted_url: str):
+        raw = self._clean_text(raw_text, u256(3000))
+        submitted = self._clean_text(submitted_url, u256(500))
+        candidates = []
+        urls = []
+
+        for chunk in raw.replace(",", " ").replace(";", " ").split(" "):
+            token = chunk.strip()
+
+            while token.endswith(".") or token.endswith(")") or token.endswith("]"):
+                token = token[:-1]
+
+            while token.startswith("(") or token.startswith("["):
+                token = token[1:]
+
+            if token.startswith("https://") or token.startswith("http://"):
+                candidates.append(token)
+
+        if len(candidates) == 0 and (submitted.startswith("https://") or submitted.startswith("http://")):
+            candidates.append(submitted)
+
+        for candidate in candidates:
+            clean = self._clean_text(candidate, u256(500))
+
+            if clean == "":
+                continue
+
+            if not clean.startswith("https://") and not clean.startswith("http://"):
+                continue
+
+            duplicate = False
+            for existing in urls:
+                if existing == clean:
+                    duplicate = True
+
+            if duplicate:
+                continue
+
+            urls.append(clean)
+
+            if len(urls) >= 5:
+                break
+
+        return urls
+
+    def _validate_web_fetch_result(self, leader_result) -> bool:
+        try:
+            data = leader_result.calldata
+        except Exception:
+            return False
+
+        if not isinstance(data, str):
+            return False
+
+        if len(data.strip()) < 40:
+            return False
+
+        if len(data) > 50000:
+            return False
+
+        return True
+
+    def _fetch_web_text(self, source_url: str) -> str:
+        safe_url = self._clean_text(source_url, u256(500))
+
+        if not safe_url.startswith("https://") and not safe_url.startswith("http://"):
+            return ""
+
+        def leader_fn():
+            return gl.nondet.web.render(safe_url, mode="text")
+
+        def validator_fn(leader_result) -> bool:
+            if not self._validate_web_fetch_result(leader_result):
+                return False
+
+            try:
+                leader_text = self._clean_text(leader_result.calldata, u256(5000))
+                validator_text = self._clean_text(
+                    gl.nondet.web.render(safe_url, mode="text"),
+                    u256(5000),
+                )
+            except Exception:
+                return False
+
+            return self._hash_text(leader_text) == self._hash_text(validator_text)
+
+        try:
+            fetched = gl.vm.run_nondet_unsafe(
+                leader_fn,
+                validator_fn,
+            )
+        except Exception:
+            fetched = ""
+
+        return self._clean_text(fetched, u256(5000))
+
+    def _build_contract_fetched_sources(self, evidence_urls_text: str, submitted_url: str):
+        evidence_urls = self._parse_evidence_urls(evidence_urls_text, submitted_url)
+        submitted_domain = self.extract_domain(submitted_url)
+        sources = []
+
+        for evidence_url in evidence_urls:
+            fetched_text = self._fetch_web_text(evidence_url)
+
+            if fetched_text == "":
+                continue
+
+            domain = self.extract_domain(evidence_url)
+            score = int(self.score_domain(domain))
+            evidence_kind = "contract_fetched_external_url"
+
+            if domain != "" and submitted_domain != "" and domain == submitted_domain:
+                evidence_kind = "contract_fetched_submitted_url"
+
+            sources.append({
+                "url": evidence_url,
+                "title": domain,
+                "domain": domain,
+                "publication": domain,
+                "credibility_score": score,
+                "source_type": self.infer_source_type(domain),
+                "is_supporting": True,
+                "relevance_score": "0.5",
+                "snippet": fetched_text[:700],
+                "evidence_kind": evidence_kind,
+                "evidence_hash": self._hash_text(evidence_url + "|" + fetched_text),
+                "verification_note": "Fetched inside the GenLayer contract with nondeterministic web access and validator agreement.",
+            })
+
+        return sources
+
     def _clean_sources_list(self, raw_sources, fallback_url: str, fallback_title: str, fallback_content: str):
         cleaned = []
         seen_keys = []
@@ -1275,7 +1406,7 @@ Expected JSON array:
         return []
 
     @gl.public.write
-    def analyse_sources(self, report_id: str, web_results_text: str) -> str:
+    def analyse_sources(self, report_id: str, evidence_urls_text: str) -> str:
         snapshot = self._get_snapshot(report_id)
 
         if snapshot == {}:
@@ -1294,25 +1425,32 @@ Expected JSON array:
         if primary_claim == "":
             primary_claim = str(snapshot.get("claim_summary", ""))[:700]
 
+        fetched_sources = self._build_contract_fetched_sources(evidence_urls_text, url)
+        fetched_sources_text = self._json_dumps(fetched_sources)
+
         prompt = self.build_source_analysis_prompt(
             url,
             category,
             primary_claim,
-            web_results_text,
+            fetched_sources_text,
         )
 
         def leader_fn():
             return gl.nondet.exec_prompt(prompt, response_format="json")
 
-        try:
-            result = gl.vm.run_nondet_unsafe(
-                leader_fn,
-                self._validate_sources_result,
-            )
-        except Exception:
-            result = []
+        result = []
+        if len(fetched_sources) >= 2:
+            try:
+                result = gl.vm.run_nondet_unsafe(
+                    leader_fn,
+                    self._validate_sources_result,
+                )
+            except Exception:
+                result = []
 
         raw_sources = self._normalise_source_result_to_list(result)
+        if len(raw_sources) == 0:
+            raw_sources = fetched_sources
 
         sources = self._clean_sources_list(
             raw_sources,
@@ -1519,7 +1657,7 @@ Expected JSON object:
                 u256(80),
             )
 
-            if evidence_kind == "submitted_source_snapshot":
+            if evidence_kind == "submitted_source_snapshot" or evidence_kind == "contract_fetched_submitted_url":
                 continue
 
             if not self._source_item_has_evidence(source):
@@ -2342,7 +2480,7 @@ Expected JSON object:
         claim_summary: str,
         category: str,
         submitter_wallet: str,
-        web_results_text: str,
+        evidence_urls_text: str,
     ) -> str:
         """
         AI-enhanced flow.
@@ -2359,7 +2497,7 @@ Expected JSON object:
         )
 
         self.extract_claims(report_id)
-        self.analyse_sources(report_id, web_results_text)
+        self.analyse_sources(report_id, evidence_urls_text)
         self.analyse_credibility(report_id)
         final_report = self.calculate_credibility(report_id)
         self.store_report(report_id)

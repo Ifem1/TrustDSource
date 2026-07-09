@@ -13,7 +13,7 @@
  *
  * Evidence mode (optional, slower): swaps in AI-assisted methods that are
  * bounded by the contract's accepted evidence references.
- *   3. analyse_sources(webResultsText)
+ *   3. analyse_sources(evidenceUrlsText)
  *   4. analyse_credibility
  *
  * Every contract write goes through the user's wallet via writeFn.
@@ -239,11 +239,12 @@ export interface PipelineFormData {
   content: string;
   claimSummary: string;
   category: string;
+  evidenceUrls?: string;
 }
 
 export interface PipelineOptions {
   mode?: PipelineMode;
-  webResultsText?: string; // only used in evidence-bounded mode
+  evidenceUrlsText?: string; // only used in evidence-bounded mode
 }
 
 export async function runVerificationPipeline(
@@ -336,14 +337,14 @@ export async function runVerificationPipeline(
 
   let sourcesRes;
   if (mode === "ai") {
-    const webResultsText =
-      options.webResultsText ??
-      // Fall back to a built block from submitted content
-      `Title: ${formData.title}\nURL: ${formData.url}\n\nContent excerpt:\n${formData.content.slice(0, 4000)}`;
+    const evidenceUrlsText =
+      options.evidenceUrlsText ??
+      formData.evidenceUrls ??
+      formData.url;
     sourcesRes = await runStep<unknown>(
       writeFn,
       "analyse_sources",
-      [reportId, webResultsText],
+      [reportId, evidenceUrlsText],
       onStatus
     );
   } else {

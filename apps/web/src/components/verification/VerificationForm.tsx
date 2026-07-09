@@ -15,6 +15,7 @@ const schema = z.object({
     .min(50, "Content must be at least 50 characters")
     .max(10000),
   claim_summary: z.string().max(1000).optional(),
+  evidence_urls: z.string().max(3000).optional(),
   category: z.enum([
     "news",
     "social",
@@ -114,6 +115,20 @@ export function VerificationForm({ onSubmit, isLoading }: VerificationFormProps)
           className="input min-h-[80px] resize-y"
           placeholder="Optional: Summarize the core claim in 1-2 sentences to help GenLayer focus the analysis..."
         />
+      </div>
+
+      <div>
+        <label className="label">Evidence URLs</label>
+        <textarea
+          {...register("evidence_urls")}
+          className="input min-h-[96px] resize-y"
+          placeholder="Optional: Add external evidence URLs, one per line. GenLayer fetches these inside the contract."
+        />
+        {errors.evidence_urls && (
+          <p className="text-riskRed text-xs mt-1">
+            {errors.evidence_urls.message}
+          </p>
+        )}
       </div>
 
       <div className="bg-surfaceSoft rounded-xl p-4 border border-border">
