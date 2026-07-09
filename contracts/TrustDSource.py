@@ -1053,16 +1053,72 @@ class TrustDSourceUnified(gl.Contract):
         except Exception:
             return False
 
+        return self._validate_web_text(data)
+
+    def _validate_web_text(self, data) -> bool:
         if not isinstance(data, str):
             return False
 
-        if len(data.strip()) < 40:
+        text = self._clean_text(data, u256(5000))
+
+        if len(text) < 80:
             return False
 
-        if len(data) > 50000:
+        if len(str(data)) > 50000:
             return False
 
         return True
+
+    def _web_fetches_substantially_agree(self, leader_text: str, validator_text: str) -> bool:
+        leader_clean = self._clean_text(leader_text, u256(5000))
+        validator_clean = self._clean_text(validator_text, u256(5000))
+
+        if not self._validate_web_text(leader_clean):
+            return False
+
+        if not self._validate_web_text(validator_clean):
+            return False
+
+        leader_len = len(leader_clean)
+        validator_len = len(validator_clean)
+        shorter = leader_len
+        longer = validator_len
+
+        if validator_len < shorter:
+            shorter = validator_len
+            longer = leader_len
+
+        if longer == 0:
+            return False
+
+        # Live pages can differ per validator because of CDN, headers, and time.
+        # Require substantial same-page overlap without demanding byte identity.
+        if int((shorter * 100) / longer) < 35:
+            return False
+
+        leader_words = leader_clean.lower().split(" ")
+        validator_words = validator_clean.lower().split(" ")
+        shared_words = 0
+        checked_words = 0
+
+        for word in leader_words:
+            if len(word) < 5:
+                continue
+
+            checked_words = checked_words + 1
+
+            for validator_word in validator_words:
+                if word == validator_word:
+                    shared_words = shared_words + 1
+                    break
+
+            if shared_words >= 8:
+                return True
+
+            if checked_words >= 80:
+                break
+
+        return False
 
     def _fetch_web_text(self, source_url: str) -> str:
         safe_url = self._clean_text(source_url, u256(500))
@@ -1086,7 +1142,10 @@ class TrustDSourceUnified(gl.Contract):
             except Exception:
                 return False
 
-            return self._hash_text(leader_text) == self._hash_text(validator_text)
+            return self._web_fetches_substantially_agree(
+                leader_text,
+                validator_text,
+            )
 
         try:
             fetched = gl.vm.run_nondet_unsafe(
