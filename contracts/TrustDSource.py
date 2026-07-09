@@ -1,4 +1,4 @@
-# v0.2.17
+﻿# v0.2.18
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 
 from genlayer import *
@@ -8,7 +8,7 @@ import hashlib
 
 class TrustDSourceUnified(gl.Contract):
     """
-    TrustDSource Unified — GenLayer Intelligent Contract
+    TrustDSource Unified - GenLayer Intelligent Contract
 
     One-contract version of:
     - Main TrustDSource
@@ -60,6 +60,9 @@ class TrustDSourceUnified(gl.Contract):
             return json.loads(value)
         except Exception:
             return None
+
+    def _hash_text(self, value) -> str:
+        return hashlib.sha256(str(value).encode()).hexdigest()
 
     def _clean_text(self, value, max_len: u256) -> str:
         text = str(value).strip()
@@ -555,7 +558,7 @@ class TrustDSourceUnified(gl.Contract):
         return "other"
 
     # ==========================================================
-    # Claim extraction — deterministic, no AI
+    # Claim extraction - deterministic, no AI
     # ==========================================================
 
     def _is_valid_claim_type_internal(self, claim_type: str) -> bool:
@@ -724,7 +727,7 @@ class TrustDSourceUnified(gl.Contract):
         clean = clean.replace("?", ".")
         clean = clean.replace("!", ".")
         clean = clean.replace(";", ".")
-        clean = clean.replace(" • ", ". ")
+        clean = clean.replace(" * ", ". ")
         clean = clean.replace(" - ", ". ")
 
         raw_parts = clean.split(".")
@@ -994,6 +997,9 @@ class TrustDSourceUnified(gl.Contract):
             "is_supporting": True,
             "relevance_score": "0.5",
             "snippet": clean_content,
+            "evidence_kind": "submitted_source_snapshot",
+            "evidence_hash": self._hash_text(clean_url + "|" + clean_title + "|" + clean_content),
+            "verification_note": "Fallback evidence is limited to the user-submitted URL and content snapshot.",
         }]
 
     def _clean_sources_list(self, raw_sources, fallback_url: str, fallback_title: str, fallback_content: str):
@@ -1015,6 +1021,9 @@ class TrustDSourceUnified(gl.Contract):
 
                 if domain == "" and source_url != "":
                     domain = self.extract_domain(source_url)
+
+                if not self._source_item_has_evidence(item):
+                    continue
 
                 domain_score = int(self.score_domain(domain))
                 ai_score = self._normalise_score_int(item.get("credibility_score", domain_score))
@@ -1053,6 +1062,15 @@ class TrustDSourceUnified(gl.Contract):
                         item.get("relevance_score", "0.5")
                     ),
                     "snippet": self._clean_text(item.get("snippet", ""), u256(700)),
+                    "evidence_kind": self._clean_text(
+                        item.get("evidence_kind", "external_evidence_reference"),
+                        u256(60),
+                    ),
+                    "evidence_hash": self._hash_text(source_url + "|" + source_title + "|" + str(item.get("snippet", ""))),
+                    "verification_note": self._clean_text(
+                        item.get("verification_note", "Source has URL, domain, and evidence snippet."),
+                        u256(180),
+                    ),
                 })
 
                 if len(cleaned) >= 15:
@@ -1160,24 +1178,83 @@ Expected JSON array:
 ]
 """.strip()
 
+    def _source_item_has_evidence(self, item) -> bool:
+        if not isinstance(item, dict):
+            return False
+
+        source_url = self._clean_text(item.get("url", ""), u256(500))
+        source_title = self._clean_text(item.get("title", ""), u256(250))
+        source_domain = self._clean_text(item.get("domain", ""), u256(120))
+        source_snippet = self._clean_text(item.get("snippet", ""), u256(700))
+
+        if source_domain == "" and source_url != "":
+            source_domain = self.extract_domain(source_url)
+
+        if source_url == "":
+            return False
+
+        if not source_url.startswith("https://") and not source_url.startswith("http://"):
+            return False
+
+        if source_domain == "":
+            return False
+
+        if source_title == "" and len(source_snippet) < 40:
+            return False
+
+        if len(source_snippet) < 25:
+            return False
+
+        return True
+
+    def _source_payload_has_evidence(self, raw) -> bool:
+        sources = self._normalise_source_result_to_list(raw)
+
+        if not isinstance(sources, list):
+            return False
+
+        credible_count = 0
+        seen_domains = []
+
+        for source in sources:
+            if not self._source_item_has_evidence(source):
+                continue
+
+            domain = self.extract_domain(str(source.get("url", "")))
+            if domain == "":
+                domain = self._clean_text(source.get("domain", ""), u256(120))
+
+            already_seen = False
+            for seen in seen_domains:
+                if seen == domain:
+                    already_seen = True
+
+            if not already_seen:
+                seen_domains.append(domain)
+
+            credible_count = credible_count + 1
+
+            if credible_count >= 2 and len(seen_domains) >= 2:
+                return True
+
+        return False
+
     def _validate_sources_result(self, leader_result) -> bool:
         try:
             data = leader_result.calldata
         except Exception:
             return False
 
-        if isinstance(data, list):
-            if len(data) > 40:
-                return False
-            return True
-
-        if isinstance(data, dict):
-            return True
-
         if isinstance(data, str):
             if len(data) > 20000:
                 return False
-            return True
+
+        sources = self._normalise_source_result_to_list(data)
+
+        if len(sources) > 40:
+            return False
+
+        return self._source_payload_has_evidence(sources)
 
         return False
 
@@ -1427,6 +1504,44 @@ Expected JSON object:
             "bias_signals": [],
         }
 
+    def _count_independent_sources(self, sources) -> int:
+        if not isinstance(sources, list):
+            return 0
+
+        seen_domains = []
+
+        for source in sources:
+            if not isinstance(source, dict):
+                continue
+
+            evidence_kind = self._clean_text(
+                source.get("evidence_kind", ""),
+                u256(80),
+            )
+
+            if evidence_kind == "submitted_source_snapshot":
+                continue
+
+            if not self._source_item_has_evidence(source):
+                continue
+
+            domain = self.extract_domain(str(source.get("url", "")))
+            if domain == "":
+                domain = self._clean_text(source.get("domain", ""), u256(120))
+
+            if domain == "":
+                continue
+
+            already_seen = False
+            for seen in seen_domains:
+                if seen == domain:
+                    already_seen = True
+
+            if not already_seen:
+                seen_domains.append(domain)
+
+        return len(seen_domains)
+
     def _deterministic_analysis(self, snapshot):
         sources = snapshot.get("sources", [])
         claims = snapshot.get("claims", [])
@@ -1456,13 +1571,21 @@ Expected JSON object:
         if isinstance(claims, list):
             claim_count = len(claims)
 
+        independent_source_count = self._count_independent_sources(sources)
+
         evidence_strength = 0
         if source_count > 0:
             evidence_strength = min(100, source_count * 20)
 
+        if independent_source_count == 0:
+            evidence_strength = 0
+
         consistency_score = 50
         if source_count > 0:
             consistency_score = 70
+
+        if independent_source_count == 0:
+            consistency_score = 35
 
         if conflicting_count > 0:
             consistency_score = 45
@@ -1471,6 +1594,8 @@ Expected JSON object:
             consistency_score = 25
 
         raw_credibility = int((source_quality * 60 + evidence_strength * 40) / 100)
+        if independent_source_count == 0:
+            raw_credibility = 0
 
         misinformation_risk = "LOW"
         if conflicting_count > supporting_count and source_count > 0:
@@ -1481,6 +1606,8 @@ Expected JSON object:
         bias_risk = "LOW"
         if source_count <= 1:
             bias_risk = "MEDIUM"
+        if independent_source_count == 0:
+            bias_risk = "HIGH"
 
         score = self._calculate_score_int(
             raw_credibility,
@@ -1493,6 +1620,19 @@ Expected JSON object:
 
         verdict = self._determine_verdict_int(score, misinformation_risk)
 
+        evidence_model = "independent_evidence"
+        reasoning = "Deterministic credibility analysis based on available claims and source signals."
+        summary = "TrustDSource produced a deterministic credibility assessment from the submitted content and available evidence."
+
+        if independent_source_count == 0:
+            score = 0
+            source_quality = 0
+            consistency_score = 0
+            verdict = "UNVERIFIED"
+            evidence_model = "submitted_snapshot_only"
+            reasoning = "The contract found no independent external evidence references. The result is limited to the submitted snapshot and cannot verify the factual claim."
+            summary = "The content snapshot is stored on-chain, but independent evidence is required before TrustDSource can verify the claim."
+
         return {
             "credibility_score": score,
             "confidence": "0.55",
@@ -1502,8 +1642,10 @@ Expected JSON object:
             "bias_risk": bias_risk,
             "misinformation_risk": misinformation_risk,
             "verdict": verdict,
-            "reasoning": "Deterministic credibility analysis based on available claims and source signals.",
-            "ai_summary": "TrustDSource produced a deterministic credibility assessment from the submitted content and available evidence.",
+            "reasoning": reasoning,
+            "ai_summary": summary,
+            "evidence_model": evidence_model,
+            "independent_source_count": independent_source_count,
             "misinformation_signals": [],
             "bias_signals": [],
         }
@@ -1546,9 +1688,51 @@ Expected JSON object:
             "verdict": self._normalise_verdict(str(raw.get("verdict", "UNVERIFIED"))),
             "reasoning": str(raw.get("reasoning", ""))[:2000],
             "ai_summary": str(raw.get("ai_summary", ""))[:500],
+            "evidence_model": self._clean_text(
+                raw.get("evidence_model", "ai_evidence_analysis"),
+                u256(80),
+            ),
+            "independent_source_count": self._normalise_score_int(
+                raw.get("independent_source_count", 0)
+            ),
             "misinformation_signals": cleaned_misinfo,
             "bias_signals": cleaned_bias,
         }
+
+    def _bound_analysis_by_evidence(self, analysis, snapshot):
+        sources = snapshot.get("sources", [])
+        independent_source_count = self._count_independent_sources(sources)
+
+        analysis["independent_source_count"] = independent_source_count
+
+        if independent_source_count == 0:
+            analysis["credibility_score"] = 0
+            analysis["source_quality"] = 0
+            analysis["confidence"] = "0.0"
+            analysis["evidence_strength"] = 0
+            analysis["consistency_score"] = 0
+            analysis["bias_risk"] = "HIGH"
+            analysis["misinformation_risk"] = "LOW"
+            analysis["verdict"] = "UNVERIFIED"
+            analysis["evidence_model"] = "submitted_snapshot_only"
+            analysis["reasoning"] = "No independent external evidence references were accepted by the contract, so the claim remains unverified."
+            analysis["ai_summary"] = "The content snapshot is stored on-chain, but independent evidence is required before TrustDSource can verify the claim."
+            return analysis
+
+        if independent_source_count == 1:
+            if self._normalise_score_int(analysis.get("credibility_score", 0)) > 54:
+                analysis["credibility_score"] = 54
+            if self._normalise_score_int(analysis.get("evidence_strength", 0)) > 45:
+                analysis["evidence_strength"] = 45
+            analysis["verdict"] = self._determine_verdict_int(
+                self._normalise_score_int(analysis.get("credibility_score", 0)),
+                str(analysis.get("misinformation_risk", "LOW")),
+            )
+            analysis["evidence_model"] = "single_independent_source"
+            return analysis
+
+        analysis["evidence_model"] = "multi_source_evidence"
+        return analysis
 
     def _validate_analysis_result(self, leader_result) -> bool:
         try:
@@ -1556,13 +1740,34 @@ Expected JSON object:
         except Exception:
             return False
 
-        if isinstance(data, dict):
-            return True
-
         if isinstance(data, str):
             if len(data) > 20000:
                 return False
+
+        parsed = self._normalise_analysis_result_to_dict(data)
+
+        if not isinstance(parsed, dict):
+            return False
+
+        if parsed == {}:
+            return False
+
+        if self._normalise_verdict(str(parsed.get("verdict", ""))) == "UNVERIFIED":
             return True
+
+        reasoning = self._clean_text(parsed.get("reasoning", ""), u256(2000))
+        summary = self._clean_text(parsed.get("ai_summary", ""), u256(500))
+
+        if len(reasoning) < 40 and len(summary) < 20:
+            return False
+
+        if self._normalise_score_int(parsed.get("evidence_strength", 0)) == 0:
+            return False
+
+        if self._normalise_score_int(parsed.get("source_quality", 0)) == 0:
+            return False
+
+        return True
 
         return False
 
@@ -1637,6 +1842,8 @@ Expected JSON object:
             analysis = self._deterministic_analysis(snapshot)
         else:
             analysis = self._clean_analysis_object(parsed)
+
+        analysis = self._bound_analysis_by_evidence(analysis, snapshot)
 
         snapshot["verification_analysis"] = analysis
         snapshot["status"] = "credibility_analyzed"
@@ -1889,6 +2096,18 @@ Expected JSON object:
         raw_sq = self._normalise_score_int(analysis.get("source_quality", 0))
         raw_es = self._normalise_score_int(analysis.get("evidence_strength", 0))
         raw_cs = self._normalise_score_int(analysis.get("consistency_score", 0))
+        independent_source_count = self._count_independent_sources(sources)
+
+        if independent_source_count == 0:
+            raw_cred = 0
+            raw_sq = 0
+            raw_es = 0
+            raw_cs = 0
+        elif independent_source_count == 1:
+            if raw_cred > 54:
+                raw_cred = 54
+            if raw_es > 45:
+                raw_es = 45
 
         credibility_score = self._calculate_score_int(
             raw_cred,
@@ -1908,6 +2127,10 @@ Expected JSON object:
             misinformation_risk,
         )
 
+        if independent_source_count == 0:
+            credibility_score = 0
+            verdict = "UNVERIFIED"
+
         supporting, conflicting = self._split_sources(sources)
 
         final_report = {
@@ -1921,6 +2144,8 @@ Expected JSON object:
             "bias_risk": self._normalise_bias_risk(str(analysis.get("bias_risk", "LOW"))),
             "misinformation_risk": misinformation_risk,
             "verdict": verdict,
+            "evidence_model": str(analysis.get("evidence_model", "unknown"))[:80],
+            "independent_source_count": independent_source_count,
             "supporting_sources": supporting[:10],
             "conflicting_sources": conflicting[:5],
             "reasoning": str(analysis.get("reasoning", ""))[:2000],

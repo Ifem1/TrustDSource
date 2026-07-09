@@ -1,5 +1,4 @@
 import { cn } from "@/lib/utils";
-import { STATUS_LABELS } from "@/constants";
 import type { VerificationStatus } from "@/types";
 
 const STEPS: { status: VerificationStatus; label: string; description: string }[] = [
@@ -11,17 +10,17 @@ const STEPS: { status: VerificationStatus; label: string; description: string }[
   {
     status: "extracting_claims",
     label: "Claims Extracted",
-    description: "Factual claims identified by LLM",
+    description: "Factual claims prepared deterministically",
   },
   {
     status: "discovering_sources",
-    label: "Sources Discovered",
-    description: "Primary and independent sources located",
+    label: "Evidence Prepared",
+    description: "Source references and provenance checked",
   },
   {
     status: "verifying",
     label: "Credibility Evaluated",
-    description: "GenLayer consensus running",
+    description: "Verdict bounded by accepted evidence",
   },
   {
     status: "complete",

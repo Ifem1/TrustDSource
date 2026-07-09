@@ -104,7 +104,7 @@ export function GenLayerProofPanel({
       {genlayerProof && (
         <details className="group">
           <summary className="text-xs font-medium text-graphPurple cursor-pointer hover:text-trustLavender transition-colors select-none">
-            View raw consensus data
+            View raw transaction data
           </summary>
           <pre className="mt-3 text-xs font-mono text-secondaryText bg-surfaceSoft rounded-xl p-4 border border-border overflow-auto max-h-48 scrollbar-thin">
             {JSON.stringify(genlayerProof, null, 2)}

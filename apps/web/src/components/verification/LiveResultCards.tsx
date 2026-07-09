@@ -18,6 +18,8 @@ type GLAnalysis = {
   bias_risk: string;
   misinformation_risk: string;
   verdict: string;
+  evidence_model?: string;
+  independent_source_count?: number;
   reasoning: string;
   ai_summary: string;
   misinformation_signals: string[];
@@ -43,7 +45,7 @@ export function ClaimsLiveCard({ claims }: ClaimsLiveCardProps) {
           {claims.length} claim{claims.length !== 1 ? "s" : ""} extracted
         </h3>
         <span className="badge bg-graphPurple/10 text-graphPurple border-graphPurple/20 text-xs ml-auto">
-          GenLayer LLM
+          Deterministic
         </span>
       </div>
 
@@ -214,6 +216,11 @@ export function AnalysisLiveCard({ analysis: rawAnalysis }: AnalysisLiveCardProp
     bias_risk: String(r.bias_risk ?? "LOW"),
     misinformation_risk: String(r.misinformation_risk ?? "LOW"),
     verdict: String(r.verdict ?? "UNVERIFIED"),
+    evidence_model: String(r.evidence_model ?? ""),
+    independent_source_count:
+      r.independent_source_count != null
+        ? Number(r.independent_source_count)
+        : undefined,
     reasoning: String(r.reasoning ?? ""),
     ai_summary: String(r.ai_summary ?? ""),
     misinformation_signals: Array.isArray(r.misinformation_signals)
@@ -227,7 +234,7 @@ export function AnalysisLiveCard({ analysis: rawAnalysis }: AnalysisLiveCardProp
       <div className="flex items-center gap-2 mb-1">
         <div className="w-2 h-2 rounded-full bg-warningAmber" />
         <h3 className="font-semibold text-primaryText text-sm">
-          AI Verification Analysis
+          Evidence-Bounded Analysis
         </h3>
       </div>
 
@@ -273,6 +280,11 @@ export function AnalysisLiveCard({ analysis: rawAnalysis }: AnalysisLiveCardProp
       </div>
 
       <div className="flex flex-wrap gap-2">
+        {analysis.evidence_model && (
+          <span className="badge text-xs bg-surfaceSoft text-secondaryText border-border">
+            {analysis.evidence_model.replace(/_/g, " ")}
+          </span>
+        )}
         <span
           className={cn(
             "badge text-xs",
@@ -389,6 +401,11 @@ export function FinalReportCard({ report }: FinalReportCardProps) {
       </div>
 
       <div className="flex flex-wrap gap-2">
+        {report.evidence_model && (
+          <span className="badge text-xs bg-surfaceSoft text-secondaryText border-border">
+            {report.evidence_model.replace(/_/g, " ")}
+          </span>
+        )}
         <span
           className={cn(
             "badge text-xs",

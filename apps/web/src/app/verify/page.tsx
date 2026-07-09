@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -103,8 +103,8 @@ export default function VerifyPage() {
         <div className="mb-10">
           <h1 className="text-3xl font-bold text-primaryText">Verify Content</h1>
           <p className="text-secondaryText mt-2">
-            Submit any article, tweet, or claim. GenLayer runs the full
-            credibility pipeline — step by step, live.
+            Submit content to lock a snapshot and run an evidence-bounded
+            credibility pipeline on GenLayer.
           </p>
         </div>
 
@@ -127,7 +127,7 @@ export default function VerifyPage() {
             </div>
           </div>
         ) : pipeline.step === "idle" ? (
-          /* ── Idle: show form + recent reports ── */
+          /* Idle: show form + recent reports */
           <div className="grid lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2">
               <div className="flex gap-1 mb-5">
@@ -173,14 +173,14 @@ export default function VerifyPage() {
                             : "bg-surface text-primaryText border-border hover:border-graphPurple"
                         )}
                       >
-                        <p className="text-sm font-semibold">⚡ Fast mode</p>
+                        <p className="text-sm font-semibold">Fast snapshot</p>
                         <p
                           className={cn(
                             "text-xs mt-0.5",
                             mode === "fast" ? "text-white/80" : "text-secondaryText"
                           )}
                         >
-                          Deterministic · seconds per step
+                          Deterministic source signals
                         </p>
                       </button>
                       <button
@@ -193,14 +193,14 @@ export default function VerifyPage() {
                             : "bg-surface text-primaryText border-border hover:border-graphPurple"
                         )}
                       >
-                        <p className="text-sm font-semibold">🧠 AI-enhanced</p>
+                        <p className="text-sm font-semibold">Evidence-bound</p>
                         <p
                           className={cn(
                             "text-xs mt-0.5",
                             mode === "ai" ? "text-white/80" : "text-secondaryText"
                           )}
                         >
-                          GenLayer consensus · slower, deeper
+                          AI-assisted, capped by accepted evidence
                         </p>
                       </button>
                     </div>
@@ -263,7 +263,7 @@ export default function VerifyPage() {
                 <ul className="space-y-2">
                   {[
                     "Claim validity",
-                    "Evidence & source signals",
+                    "Evidence provenance",
                     "Citation quality",
                     "Cross-source consistency",
                     "Misinformation indicators",
@@ -285,8 +285,8 @@ export default function VerifyPage() {
                   {[
                     "Submit & lock snapshot",
                     "Extract claims",
-                    "Discover sources",
-                    "Verify claims",
+                    "Prepare evidence",
+                    "Bound claim verdict",
                     "Calculate score",
                     "Store on-chain",
                     "Update reputation",
@@ -303,7 +303,7 @@ export default function VerifyPage() {
             </div>
           </div>
         ) : (
-          /* ── Pipeline running / complete / failed ── */
+          /* Pipeline running / complete / failed */
           <div className="grid lg:grid-cols-3 gap-8">
             {/* Left: pipeline progress + actions */}
             <div className="space-y-5">
@@ -330,7 +330,7 @@ export default function VerifyPage() {
                     onClick={handleViewReport}
                     className="btn-primary w-full"
                   >
-                    View Full Report →
+                    View Full Report
                   </button>
                   <button
                     onClick={handleReset}

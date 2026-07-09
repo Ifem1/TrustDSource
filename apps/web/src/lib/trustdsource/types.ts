@@ -23,6 +23,9 @@ export type Source = {
   is_supporting: boolean;
   relevance_score: string;
   snippet: string;
+  evidence_kind?: string;
+  evidence_hash?: string;
+  verification_note?: string;
 };
 
 export type TrustDSourceReport = {
@@ -43,6 +46,8 @@ export type TrustDSourceReport = {
   bias_risk: string;
   misinformation_risk: string;
   verdict: string;
+  evidence_model?: string;
+  independent_source_count?: number;
   supporting_sources: Source[];
   conflicting_sources: Source[];
   reasoning: string;
@@ -118,9 +123,9 @@ export type PipelineStatus =
 export const STATUS_LABELS: Record<string, string> = {
   snapshot_locked: "Snapshot locked on-chain",
   claims_extracted: "Claims extracted",
-  sources_fallback: "Fallback source evidence prepared",
-  sources_analyzed: "Sources analysed",
+  sources_fallback: "Submitted-source snapshot prepared",
+  sources_analyzed: "Evidence references checked",
   credibility_deterministic: "Deterministic credibility analysis complete",
-  credibility_analyzed: "AI-enhanced credibility analysis complete",
+  credibility_analyzed: "Evidence-bounded credibility analysis complete",
   complete: "Verification complete",
 };

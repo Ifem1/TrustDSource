@@ -203,6 +203,8 @@ export interface GenLayerReport {
   bias_risk: BiasRisk;
   misinformation_risk: MisinformationRisk;
   verdict: VerdictType;
+  evidence_model?: string;
+  independent_source_count?: number;
   supporting_sources: GenLayerSource[];
   conflicting_sources: GenLayerSource[];
   reasoning: string;
@@ -221,6 +223,9 @@ export interface GenLayerSource {
   is_supporting: boolean;
   relevance_score: number;
   snippet: string;
+  evidence_kind?: string;
+  evidence_hash?: string;
+  verification_note?: string;
 }
 
 export interface GenLayerClaim {

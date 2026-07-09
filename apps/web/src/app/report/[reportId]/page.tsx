@@ -6,7 +6,6 @@ import Link from "next/link";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { TrustScoreCard } from "@/components/ui/TrustScoreCard";
-import { CredibilityGauge } from "@/components/ui/CredibilityGauge";
 import { ClaimCard } from "@/components/verification/ClaimCard";
 import { SourceCard } from "@/components/verification/SourceCard";
 import { SourceGraph } from "@/components/verification/SourceGraph";
@@ -59,6 +58,13 @@ export default function ReportPage() {
             is_supporting: s.is_supporting !== false,
             relevance_score: String(s.relevance_score ?? "0.5"),
             snippet: String(s.snippet ?? ""),
+            evidence_kind: s.evidence_kind
+              ? String(s.evidence_kind)
+              : undefined,
+            evidence_hash: s.evidence_hash ? String(s.evidence_hash) : undefined,
+            verification_note: s.verification_note
+              ? String(s.verification_note)
+              : undefined,
           }));
 
       const normalisedClaims = (arr: unknown[]): GLClaim[] =>
@@ -83,6 +89,13 @@ export default function ReportPage() {
         bias_risk: String(raw.bias_risk ?? "LOW"),
         misinformation_risk: String(raw.misinformation_risk ?? "LOW"),
         verdict: String(raw.verdict ?? "UNVERIFIED"),
+        evidence_model: raw.evidence_model
+          ? String(raw.evidence_model)
+          : undefined,
+        independent_source_count:
+          raw.independent_source_count != null
+            ? Number(raw.independent_source_count)
+            : undefined,
         supporting_sources: normalisedSources(
           Array.isArray(raw.supporting_sources) ? raw.supporting_sources : []
         ),

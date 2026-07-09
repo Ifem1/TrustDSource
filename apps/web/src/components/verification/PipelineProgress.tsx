@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { cn } from "@/lib/utils";
 import type { PipelineStep } from "@/lib/genlayer/pipeline";
@@ -32,18 +32,18 @@ const STEPS: StepDef[] = [
   },
   {
     key: "discovering_sources",
-    label: "Discovering sources",
-    sublabel: "Analysing evidence and source signals",
+    label: "Preparing evidence",
+    sublabel: "Checking source references and provenance",
   },
   {
     key: "sources_fallback",
     label: "Sources prepared",
-    sublabel: "Fallback source evidence prepared",
+    sublabel: "Submitted-source snapshot prepared",
   },
   {
     key: "sources_analyzed",
-    label: "Sources analysed",
-    sublabel: "AI source evidence analysis complete",
+    label: "Sources checked",
+    sublabel: "Evidence references accepted by contract",
   },
   {
     key: "verifying_claims",
@@ -58,7 +58,7 @@ const STEPS: StepDef[] = [
   {
     key: "credibility_analyzed",
     label: "Credibility analysed",
-    sublabel: "AI-enhanced credibility analysis complete",
+    sublabel: "Evidence-bounded credibility analysis complete",
   },
   {
     key: "calculating_credibility",
@@ -124,8 +124,8 @@ export function PipelineProgress({
   const displaySteps = [
     { key: "submitting", label: "Submit & Snapshot", complete: currentIdx >= 1 },
     { key: "extracting_claims", label: "Extract Claims", complete: currentIdx >= 3 },
-    { key: "discovering_sources", label: "Discover Sources", complete: currentIdx >= 5 },
-    { key: "verifying_claims", label: "Verify Claims", complete: currentIdx >= 7 },
+    { key: "discovering_sources", label: "Prepare Evidence", complete: currentIdx >= 5 },
+    { key: "verifying_claims", label: "Bound Verdict", complete: currentIdx >= 7 },
     { key: "calculating_credibility", label: "Calculate Score", complete: currentIdx >= 9 },
     { key: "storing_report", label: "Store On-Chain", complete: currentIdx >= 10 },
     { key: "updating_reputation", label: "Update Reputation", complete: currentIdx >= 11 },
@@ -190,7 +190,7 @@ export function PipelineProgress({
                   {txStatus}
                 </span>
                 <span className="text-xs text-secondaryText">
-                  · {formatElapsed(txElapsedMs)} elapsed
+                  {formatElapsed(txElapsedMs)} elapsed
                 </span>
               </div>
             )}
@@ -265,7 +265,7 @@ export function PipelineProgress({
               </span>
               {isActive && (
                 <span className="text-xs text-graphPurple ml-auto font-mono">
-                  running…
+                  running...
                 </span>
               )}
               {isDone && !isActive && (
@@ -304,7 +304,7 @@ export function PipelineProgress({
       {/* Notice about LLM time */}
       {!isComplete && !isFailed && (
         <p className="text-xs text-secondaryText text-center">
-          Each step runs GenLayer AI consensus — may take 30s to several minutes per step
+          Wallet-signed GenLayer steps may take 30s to several minutes each
         </p>
       )}
     </div>

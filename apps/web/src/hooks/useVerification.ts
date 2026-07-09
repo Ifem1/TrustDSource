@@ -11,25 +11,14 @@ export function useVerification() {
     useState<VerificationFull | null>(null);
 
   const submitVerification = useCallback(
-    async (form: SubmitContentForm, walletAddress: string) => {
+    async (_form: SubmitContentForm, _walletAddress: string) => {
       setLoading(true);
       setError(null);
 
       try {
-        const res = await fetch("/api/verify", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...form, wallet_address: walletAddress }),
-        });
-
-        if (!res.ok) {
-          const data = await res.json();
-          throw new Error(data.error || "Submission failed");
-        }
-
-        const data = await res.json();
-        toast.success("Verification submitted successfully");
-        return data.verification_id as string;
+        throw new Error(
+          "Deprecated hook. Use runVerificationPipeline with a wallet-signed GenLayer transaction."
+        );
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Submission failed";
         setError(msg);

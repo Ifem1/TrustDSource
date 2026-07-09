@@ -71,6 +71,11 @@ export function SourceCard({ source }: SourceCardProps) {
         {source.publication && (
           <span className="text-xs text-secondaryText">{source.publication}</span>
         )}
+        {source.evidence_kind && (
+          <span className="badge bg-surfaceSoft text-secondaryText border-border text-xs">
+            {source.evidence_kind.replace(/_/g, " ")}
+          </span>
+        )}
         {source.relevance_score != null && (
           <span className="text-xs text-secondaryText ml-auto">
             Relevance: {Math.round(source.relevance_score * 100)}%

@@ -1,7 +1,7 @@
-/**
+﻿/**
  * Unified-contract verification pipeline.
  *
- * Fast mode (default — recommended): all steps are deterministic on-chain.
+ * Fast mode (default): all steps are deterministic on-chain.
  *   1. submit_content
  *   2. extract_claims
  *   3. use_fallback_sources
@@ -11,7 +11,8 @@
  *   7. update_reputation
  *   8. get_report   (final read)
  *
- * AI mode (optional, slower): swaps in the AI-powered methods.
+ * Evidence mode (optional, slower): swaps in AI-assisted methods that are
+ * bounded by the contract's accepted evidence references.
  *   3. analyse_sources(webResultsText)
  *   4. analyse_credibility
  *
@@ -99,7 +100,7 @@ export function initialPipelineState(mode: PipelineMode = "fast"): PipelineState
 }
 
 // ----------------------------------------------------------------
-// Recent reports — localStorage (synced to Supabase via /api/recent-reports)
+// Recent reports - localStorage (synced to Supabase via /api/recent-reports)
 // ----------------------------------------------------------------
 
 const STORAGE_KEY = "trustdsource:recentReports";
@@ -208,6 +209,8 @@ function composeFinalReport(args: {
     bias_risk: String(a.bias_risk ?? "LOW"),
     misinformation_risk: String(a.misinformation_risk ?? "LOW"),
     verdict: String(a.verdict ?? "UNVERIFIED"),
+    evidence_model: String(a.evidence_model ?? "local_fallback"),
+    independent_source_count: Number(a.independent_source_count ?? 0),
     supporting_sources: supporting,
     conflicting_sources: conflicting,
     reasoning: String(a.reasoning ?? ""),
@@ -240,7 +243,7 @@ export interface PipelineFormData {
 
 export interface PipelineOptions {
   mode?: PipelineMode;
-  webResultsText?: string; // only used in AI mode
+  webResultsText?: string; // only used in evidence-bounded mode
 }
 
 export async function runVerificationPipeline(
@@ -264,7 +267,7 @@ export async function runVerificationPipeline(
   const onStatus = (status: string, elapsed: number) =>
     onStep({ currentTxStatus: status, currentTxElapsedMs: elapsed });
 
-  // ── Step 1: submit_content ──────────────────────────────────
+  // Step 1: submit_content
   state = { ...state, step: "submitting", error: null };
   onStep(state);
 
@@ -286,9 +289,9 @@ export async function runVerificationPipeline(
 
   // submit_content normally returns the report_id directly.
   // Handle several possible shapes from the decoder:
-  //   "abc123..."                              → plain string
-  //   { report_id: "abc..." }                  → object wrapper
-  //   { content_hash: "...", report_id: ... }  → snapshot fallback
+  //   "abc123..."                              -> plain string
+  //   { report_id: "abc..." }                  -> object wrapper
+  //   { content_hash: "...", report_id: ... }  -> snapshot fallback
   let reportId = "";
   const raw = submit.data;
   if (typeof raw === "string") {
@@ -310,7 +313,7 @@ export async function runVerificationPipeline(
     wallet: walletAddress,
   });
 
-  // ── Step 2: extract_claims (deterministic) ──────────────────
+  // Step 2: extract_claims (deterministic)
   state = { ...state, step: "extracting_claims" };
   onStep(state);
 
@@ -327,7 +330,7 @@ export async function runVerificationPipeline(
   state = { ...state, step: "claims_extracted", claims };
   onStep(state);
 
-  // ── Step 3: sources (mode-dependent) ────────────────────────
+  // Step 3: sources (mode-dependent)
   state = { ...state, step: "discovering_sources" };
   onStep(state);
 
@@ -362,7 +365,7 @@ export async function runVerificationPipeline(
   };
   onStep(state);
 
-  // ── Step 4: credibility analysis (mode-dependent) ───────────
+  // Step 4: credibility analysis (mode-dependent)
   state = { ...state, step: "verifying_claims" };
   onStep(state);
 
@@ -386,7 +389,7 @@ export async function runVerificationPipeline(
   };
   onStep(state);
 
-  // ── Step 5: calculate_credibility ───────────────────────────
+  // Step 5: calculate_credibility
   state = { ...state, step: "calculating_credibility" };
   onStep(state);
 
@@ -424,7 +427,7 @@ export async function runVerificationPipeline(
     wallet: walletAddress,
   });
 
-  // ── Step 6: store_report ────────────────────────────────────
+  // Step 6: store_report
   state = { ...state, step: "storing_report" };
   onStep(state);
 
@@ -439,7 +442,7 @@ export async function runVerificationPipeline(
     console.warn("[pipeline] store_report failed:", storeRes.error);
   }
 
-  // ── Step 7: update_reputation ───────────────────────────────
+  // Step 7: update_reputation
   state = { ...state, step: "updating_reputation" };
   onStep(state);
 
@@ -454,7 +457,7 @@ export async function runVerificationPipeline(
     console.warn("[pipeline] update_reputation failed:", repRes.error);
   }
 
-  // ── Step 8: read final report + profile + analytics ────────
+  // Step 8: read final report, profile, and analytics
   state = { ...state, step: "reading_final" };
   onStep(state);
 
@@ -509,7 +512,7 @@ export async function runVerificationPipeline(
 }
 
 // ----------------------------------------------------------------
-// Resume from a failed step — re-runs from scratch using the existing reportId
+// Resume from a failed step - re-runs from scratch using the existing reportId
 // ----------------------------------------------------------------
 
 export async function resumePipeline(

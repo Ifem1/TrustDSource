@@ -1,11 +1,11 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import { Providers } from "@/providers";
 import "@/styles/globals.css";
 
 export const metadata: Metadata = {
-  title: "Trustdsource — Verify. Trace. Trust.",
+  title: "TrustDSource - Verify. Trace. Trust.",
   description:
-    "GenLayer-powered misinformation detection and credibility verification platform. Submit any content, get an immutable on-chain credibility score.",
+    "GenLayer-powered claim verification with evidence-bounded scoring, immutable snapshots, and on-chain report records.",
   keywords: [
     "fact check",
     "misinformation",
@@ -15,8 +15,8 @@ export const metadata: Metadata = {
     "source analysis",
   ],
   openGraph: {
-    title: "Trustdsource",
-    description: "AI-powered credibility verification on GenLayer",
+    title: "TrustDSource",
+    description: "Evidence-bounded credibility verification on GenLayer",
     type: "website",
   },
 };

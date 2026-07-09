@@ -1,154 +1,105 @@
-# Trustdsource
+# TrustDSource
 
-**GenLayer-powered misinformation detection and credibility verification platform.**
+TrustDSource is a GenLayer-based claim verification project focused on
+evidence provenance, immutable content snapshots, deterministic scoring, and
+researcher reputation.
 
-> Submit any article, tweet, or claim. GenLayer's AI consensus extracts facts, discovers sources, and returns an immutable credibility score — stored on-chain forever.
+The project is intentionally one end-to-end product, not a collection of small
+demos. A submitted article, post, or claim is locked as an on-chain snapshot.
+The contract extracts claims, records source evidence, bounds credibility
+scores by accepted evidence, stores the final report hash, and updates the
+submitter's reputation.
 
----
+## Why GenLayer
+
+TrustDSource uses GenLayer where validator consensus adds value:
+
+- content snapshots and report hashes are stored on-chain;
+- every pipeline step is wallet-signed and auditable;
+- AI-assisted source and credibility analysis is bounded by contract checks;
+- submitted-only evidence remains `UNVERIFIED` instead of receiving an
+  unsupported credibility verdict;
+- validator checks reject thin source outputs that only satisfy JSON shape.
+
+This is not an off-chain recommendation or summary app with a chain wrapper.
+The core value is the verifiable verification record.
 
 ## Stack
 
-- **Frontend**: Next.js 15, TypeScript, Tailwind CSS, App Router
-- **Backend**: Supabase (Auth, Database, Storage, Edge Functions)
-- **Smart Contracts**: GenLayer Intelligent Contracts (Python)
-- **Wallet**: wagmi + viem
-
----
+- Frontend: Next.js, TypeScript, Tailwind CSS, App Router
+- Indexing: Supabase for optional report/profile mirrors
+- Smart contract: GenLayer Intelligent Contract in `contracts/TrustDSource.py`
+- Wallet: wagmi, viem, genlayer-js
 
 ## Project Structure
 
-```
+```text
 trustdsource/
-├── apps/web/                    # Next.js frontend
-│   └── src/
-│       ├── app/                 # App Router pages + API routes
-│       ├── components/          # UI components
-│       ├── features/            # Feature modules
-│       ├── hooks/               # React hooks
-│       ├── lib/                 # Supabase + GenLayer clients
-│       ├── providers/           # Context providers
-│       ├── types/               # TypeScript types
-│       └── constants/           # App constants
-├── intelligent-contract/        # GenLayer contract (Python)
-│   ├── trustdsource_contract.py # Main contract
-│   ├── scoring_engine.py
-│   ├── credibility_engine.py
-│   ├── source_discovery.py
-│   └── claim_extractor.py
-├── supabase/
-│   ├── migrations/              # SQL migrations
-│   ├── functions/               # Edge functions
-│   └── seeds/                   # Seed data
-├── tests/                       # Test suite
-└── scripts/                     # Setup scripts
++-- apps/web/                 Next.js frontend
++-- contracts/TrustDSource.py Unified GenLayer contract
++-- supabase/                 Optional index schema, functions, and seed data
++-- tests/contract/           Contract behavior tests
++-- scripts/                  Setup and deployment notes
 ```
-
----
 
 ## Setup
 
-### 1. Clone and install
-
 ```powershell
-cd apps\web
 npm install --legacy-peer-deps
-```
-
-### 2. Configure environment
-
-```powershell
-Copy-Item .env.local.example .env.local
-```
-
-Edit `.env.local` with your:
-- Supabase project URL and keys
-- GenLayer contract address (after deployment)
-- WalletConnect project ID
-
-### 3. Set up Supabase
-
-In your [Supabase dashboard](https://app.supabase.com) SQL Editor, run in order:
-
-1. `supabase/migrations/001_initial_schema.sql`
-2. `supabase/migrations/002_views_and_triggers.sql`
-3. `supabase/migrations/003_rls_policies.sql`
-4. (Optional) `supabase/seeds/001_seed_data.sql`
-
-### 4. Deploy the GenLayer Contract
-
-See `scripts/deploy-contract.md` for step-by-step instructions.
-
-Deploy `intelligent-contract/trustdsource_contract.py` to GenLayer StudioNet at https://studio.genlayer.com
-
-Set the returned contract address in `.env.local`:
-```
-NEXT_PUBLIC_GENLAYER_CONTRACT_ADDRESS=0xYOUR_ADDRESS
-```
-
-### 5. Run the development server
-
-```powershell
+Copy-Item .env.example apps\web\.env.local
 npm run dev
 ```
 
-Open http://localhost:3000
+Fill `apps/web/.env.local` with:
 
----
+- `NEXT_PUBLIC_GENLAYER_CONTRACT_ADDRESS`
+- Supabase URL and keys, if using the optional index
+- WalletConnect project ID, if required by your wallet setup
 
-## GenLayer Contract
+## Deploy the Contract
 
-The `Trustdsource` intelligent contract provides:
+See `scripts/deploy-contract.md`.
 
-| Function | Description |
-|---|---|
-| `submit_content()` | Lock content snapshot, begin verification |
-| `extract_claims()` | LLM-powered claim extraction |
-| `discover_sources()` | Web search for primary sources |
-| `verify_claims()` | Cross-reference and evaluate credibility |
-| `calculate_credibility()` | Compute composite trust score |
-| `store_report()` | Persist report on-chain |
-| `update_reputation()` | Update researcher reputation |
-| `get_report()` | Read a verification report |
-| `get_profile()` | Read a wallet's on-chain profile |
-| `get_analytics()` | Read daily analytics data |
-| `get_total_verifications()` | Platform-wide verification count |
+Deploy the full contents of `contracts/TrustDSource.py` to GenLayer StudioNet,
+then set the returned address as:
 
----
+```env
+NEXT_PUBLIC_GENLAYER_CONTRACT_ADDRESS=0xYOUR_ADDRESS
+```
 
-## Verdict Scale
+## Unified Contract API
 
-| Verdict | Score Range |
-|---|---|
-| HIGH_CREDIBILITY | 80–100 |
-| MODERATE_CREDIBILITY | 55–79 |
-| LOW_CREDIBILITY | 30–54 |
-| MISLEADING | < 30 with misinfo signals |
-| UNVERIFIED | Insufficient sources |
+| Function | Purpose |
+| --- | --- |
+| `submit_content` | Lock submitted title, URL, content, claim summary, and wallet |
+| `extract_claims` | Deterministically prepare claim objects |
+| `use_fallback_sources` | Record submitted-source snapshot evidence only |
+| `analyse_sources` | Accept AI-assisted source references only when they contain URL/domain/snippet evidence |
+| `use_deterministic_credibility` | Compute deterministic evidence-bound analysis |
+| `analyse_credibility` | AI-assisted analysis bounded by accepted evidence |
+| `calculate_credibility` | Compute the final score and verdict |
+| `store_report` | Store the report hash and analytics |
+| `update_reputation` | Update the submitter's on-chain profile |
+| `get_report` | Read a report |
+| `get_profile` | Read a wallet profile |
+| `get_analytics` | Read aggregate analytics |
 
----
+## Evidence Policy
 
-## Reputation Tiers
+- Submitted content alone can create an immutable snapshot, but it does not
+  prove the factual claim.
+- If no independent external source reference is accepted, the contract returns
+  `UNVERIFIED`.
+- One independent source caps the possible credibility result.
+- Multiple accepted independent sources are required for stronger verdicts.
+- Source validators require real URL/domain/snippet substance, not just valid
+  JSON.
 
-| Tier | Points Required |
-|---|---|
-| New | 0 |
-| Analyst | 50 |
-| Researcher | 200 |
-| Trusted Researcher | 500 |
-| Verification Expert | 1000 |
+## Scripts
 
----
-
-## Pages
-
-| Route | Description |
-|---|---|
-| `/` | Landing page |
-| `/verify` | Submit content for verification |
-| `/report/[id]` | View full verification report |
-| `/explore` | Browse all reports |
-| `/history` | Personal verification history |
-| `/dashboard` | User dashboard |
-| `/profile/[wallet]` | Public researcher profile |
-| `/analytics` | Platform analytics |
-| `/reputation` | Global leaderboard |
+```powershell
+npm run dev
+npm run build
+npm run lint
+npm run type-check --workspace=apps/web
+```

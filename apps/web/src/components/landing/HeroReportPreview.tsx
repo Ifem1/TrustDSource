@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 
 /**
- * Animated mock report card for the hero — score ticks up, gauge fills,
+ * Animated sample report card for the hero - score ticks up, gauge fills,
  * source bars animate in. Loops to feel "live."
  */
 export function HeroReportPreview() {

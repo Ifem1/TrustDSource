@@ -14,7 +14,6 @@ import {
 } from "recharts";
 import { useAnalytics } from "@/hooks/useAnalytics";
 import { formatNumber, formatDate } from "@/lib/utils";
-import type { PlatformStats } from "@/types";
 
 const VERDICT_COLORS = ["#16a34a", "#3b82f6", "#f59e0b", "#ef4444", "#9d4edd"];
 

@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { CredibilityGauge } from "@/components/ui/CredibilityGauge";
@@ -20,7 +20,7 @@ export default function HomePage() {
 
         <div className="w-full max-w-[1600px] 2xl:max-w-[1800px] mx-auto relative z-10">
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-            {/* Left — copy */}
+            {/* Left copy */}
             <div>
               <h1 className="text-5xl md:text-6xl xl:text-7xl font-black text-primaryText tracking-tight leading-[1.05] mb-6">
                 Verify. Trace.{" "}
@@ -28,9 +28,9 @@ export default function HomePage() {
               </h1>
 
               <p className="text-xl text-secondaryText max-w-xl mb-10 leading-relaxed">
-                Submit any article, tweet, or claim. GenLayer&apos;s AI consensus
-                extracts facts, discovers sources, and returns an immutable
-                credibility score stored on-chain forever.
+                Submit content, lock a GenLayer snapshot, and receive an
+                evidence-bounded credibility report with source provenance
+                and an immutable on-chain record.
               </p>
 
               <div className="flex flex-col sm:flex-row items-start gap-3 mb-10">
@@ -75,7 +75,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Right — live animated report preview */}
+            {/* Right live animated report preview */}
             <div className="flex justify-center lg:justify-end">
               <HeroReportPreview />
             </div>
@@ -158,7 +158,7 @@ export default function HomePage() {
                 "User submits content in seconds",
                 "GenLayer extracts all factual claims",
                 "Sources automatically discovered",
-                "Credibility measured by AI consensus",
+                "Credibility bounded by accepted evidence",
                 "Evidence compared across sources",
                 "Verification report stored on-chain forever",
               ].map((item) => (
@@ -188,7 +188,7 @@ export default function HomePage() {
             </span>
             <h2 className="section-title">The Verification Pipeline</h2>
             <p className="section-subtitle">
-              Five automated steps powered by GenLayer&apos;s intelligent consensus
+              A focused pipeline for snapshots, evidence, scoring, and on-chain records
             </p>
           </div>
 
@@ -213,21 +213,21 @@ export default function HomePage() {
           <div className="grid md:grid-cols-3 gap-6">
             {[
               {
-                title: "LLM-Powered Analysis",
-                desc: "GenLayer runs advanced AI analysis directly inside smart contracts, enabling intelligent claim extraction and source evaluation.",
-                icon: "🧠",
+                title: "Evidence-Bounded Analysis",
+                desc: "GenLayer runs contract-level analysis that is capped by accepted evidence references instead of trusting format-only AI output.",
+                icon: "AI",
                 color: "bg-graphPurple/10 text-graphPurple",
               },
               {
                 title: "Decentralized Consensus",
-                desc: "Multiple validator nodes reach consensus on credibility scores, eliminating single-point bias in fact-checking.",
-                icon: "⛓️",
+                desc: "Validator consensus records the accepted pipeline outcome while deterministic checks limit unsupported credibility claims.",
+                icon: "GL",
                 color: "bg-moderateBlue/10 text-moderateBlue",
               },
               {
                 title: "Immutable Records",
                 desc: "Every verification is permanently recorded. No one can alter or delete a credibility report once it is stored.",
-                icon: "🔐",
+                icon: "ON",
                 color: "bg-credibilityGreen/10 text-credibilityGreen",
               },
             ].map((item, i) => (
@@ -327,11 +327,11 @@ export default function HomePage() {
 
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {[
-              { tier: "New", icon: "🌱", points: "0+", color: "text-secondaryText" },
-              { tier: "Analyst", icon: "🔍", points: "50+", color: "text-moderateBlue" },
-              { tier: "Researcher", icon: "📊", points: "200+", color: "text-trustLavender" },
-              { tier: "Trusted", icon: "⭐", points: "500+", color: "text-graphPurple" },
-              { tier: "Expert", icon: "🏆", points: "1000+", color: "text-credibilityGreen" },
+              { tier: "New", icon: "N", points: "0+", color: "text-secondaryText" },
+              { tier: "Analyst", icon: "A", points: "50+", color: "text-moderateBlue" },
+              { tier: "Researcher", icon: "R", points: "200+", color: "text-trustLavender" },
+              { tier: "Trusted", icon: "T", points: "500+", color: "text-graphPurple" },
+              { tier: "Expert", icon: "E", points: "1000+", color: "text-credibilityGreen" },
             ].map((tier, i) => (
               <div key={i} className="card p-4 text-center">
                 <div className="text-3xl mb-2">{tier.icon}</div>
@@ -354,7 +354,7 @@ export default function HomePage() {
             GenLayer-powered credibility verification.
           </p>
           <Link href="/verify" className="btn-primary text-lg px-10 py-4 inline-block">
-            Verify Content →
+            Verify Content
           </Link>
         </div>
       </section>
