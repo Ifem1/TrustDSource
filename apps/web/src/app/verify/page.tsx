@@ -202,7 +202,7 @@ export default function VerifyPage() {
                             mode === "ai" ? "text-white/80" : "text-secondaryText"
                           )}
                         >
-                          AI-assisted, capped by accepted evidence
+                          Web evidence, deterministic score
                         </p>
                       </button>
                     </div>

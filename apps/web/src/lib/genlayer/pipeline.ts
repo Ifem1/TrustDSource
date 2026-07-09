@@ -11,10 +11,10 @@
  *   7. update_reputation
  *   8. get_report   (final read)
  *
- * Evidence mode (optional, slower): swaps in AI-assisted methods that are
- * bounded by the contract's accepted evidence references.
+ * Evidence mode (optional, slower): fetches evidence URLs in-contract, then
+ * uses deterministic credibility scoring over the accepted evidence references.
  *   3. analyse_sources(evidenceUrlsText)
- *   4. analyse_credibility
+ *   4. use_deterministic_credibility
  *
  * Every contract write goes through the user's wallet via writeFn.
  * Receipt polling is done by waitForTx in trustdsource/service.ts.
@@ -370,8 +370,7 @@ export async function runVerificationPipeline(
   state = { ...state, step: "verifying_claims" };
   onStep(state);
 
-  const credibilityMethod =
-    mode === "ai" ? "analyse_credibility" : "use_deterministic_credibility";
+  const credibilityMethod = "use_deterministic_credibility";
 
   const credRes = await runStep<unknown>(
     writeFn,

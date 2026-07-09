@@ -203,7 +203,7 @@ export default function HomePage() {
             <span className="badge bg-graphPurple/10 text-graphPurple border-graphPurple/20 mb-4">
               Why GenLayer
             </span>
-            <h2 className="section-title">AI + Blockchain Consensus</h2>
+            <h2 className="section-title">Evidence + Blockchain Consensus</h2>
             <p className="section-subtitle">
               GenLayer uniquely combines LLM intelligence with blockchain
               immutability
@@ -214,8 +214,8 @@ export default function HomePage() {
             {[
               {
                 title: "Evidence-Bounded Analysis",
-                desc: "GenLayer runs contract-level analysis that is capped by accepted evidence references instead of trusting format-only AI output.",
-                icon: "AI",
+                desc: "GenLayer fetches source evidence in-contract and scores claims from accepted references instead of trusting format-only output.",
+                icon: "EV",
                 color: "bg-graphPurple/10 text-graphPurple",
               },
               {
