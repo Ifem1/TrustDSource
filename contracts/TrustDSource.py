@@ -1,4 +1,3 @@
-﻿# v0.2.18
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 
 from genlayer import *
@@ -239,6 +238,25 @@ class TrustDSourceUnified(gl.Contract):
 
     def _store_snapshot(self, report_id: str, snapshot) -> None:
         self.reports[report_id] = self._json_dumps(snapshot)
+
+    def _sender_text(self) -> str:
+        return self._clean_text(str(gl.message.sender_address), u256(120))
+
+    def _snapshot_submitter(self, snapshot) -> str:
+        return self._clean_text(str(snapshot.get("submitter_wallet", "")), u256(120))
+
+    def _is_report_sender(self, snapshot) -> bool:
+        submitter = self._lower(self._snapshot_submitter(snapshot))
+        sender = self._lower(self._sender_text())
+
+        if submitter == "":
+            return False
+
+        return submitter == sender
+
+    def _has_final_report(self, snapshot) -> bool:
+        final_report = snapshot.get("final_report", {})
+        return isinstance(final_report, dict) and final_report != {}
 
     # ==========================================================
     # Schema/constants helpers
@@ -1093,7 +1111,7 @@ class TrustDSourceUnified(gl.Contract):
 
         # Live pages can differ per validator because of CDN, headers, and time.
         # Require substantial same-page overlap without demanding byte identity.
-        if int((shorter * 100) / longer) < 35:
+        if (shorter * 100) // longer < 35:
             return False
 
         leader_words = leader_clean.lower().split(" ")
@@ -1217,7 +1235,7 @@ class TrustDSourceUnified(gl.Contract):
 
                 domain_score = int(self.score_domain(domain))
                 ai_score = self._normalise_score_int(item.get("credibility_score", domain_score))
-                blended_score = int((ai_score * 65 + domain_score * 35) / 100)
+                blended_score = (ai_score * 65 + domain_score * 35) // 100
 
                 key = source_url
                 if key == "":
@@ -1471,6 +1489,12 @@ Expected JSON array:
         if snapshot == {}:
             return "[]"
 
+        if not self._is_report_sender(snapshot):
+            return "[]"
+
+        if self._has_final_report(snapshot) or snapshot.get("stored", False):
+            return self._json_dumps(snapshot.get("sources", []))
+
         title = str(snapshot.get("title", ""))
         url = str(snapshot.get("url", ""))
         category = str(snapshot.get("category", "news"))
@@ -1530,6 +1554,12 @@ Expected JSON array:
 
         if snapshot == {}:
             return "[]"
+
+        if not self._is_report_sender(snapshot):
+            return "[]"
+
+        if self._has_final_report(snapshot) or snapshot.get("stored", False):
+            return self._json_dumps(snapshot.get("sources", []))
 
         sources = self._source_fallback_list(
             str(snapshot.get("url", "")),
@@ -1790,7 +1820,7 @@ Expected JSON object:
         if conflicting_count > supporting_count:
             consistency_score = 25
 
-        raw_credibility = int((source_quality * 60 + evidence_strength * 40) / 100)
+        raw_credibility = (source_quality * 60 + evidence_strength * 40) // 100
         if independent_source_count == 0:
             raw_credibility = 0
 
@@ -2013,6 +2043,12 @@ Expected JSON object:
         if snapshot == {}:
             return self._json_dumps(self._default_analysis("Report not found."))
 
+        if not self._is_report_sender(snapshot):
+            return self._json_dumps(self._default_analysis("Unauthorized sender."))
+
+        if self._has_final_report(snapshot) or snapshot.get("stored", False):
+            return self._json_dumps(snapshot.get("verification_analysis", {}))
+
         prompt = self.build_verification_prompt(report_id)
 
         if prompt == "":
@@ -2054,6 +2090,12 @@ Expected JSON object:
 
         if snapshot == {}:
             return self._json_dumps(self._default_analysis("Report not found."))
+
+        if not self._is_report_sender(snapshot):
+            return self._json_dumps(self._default_analysis("Unauthorized sender."))
+
+        if self._has_final_report(snapshot) or snapshot.get("stored", False):
+            return self._json_dumps(snapshot.get("verification_analysis", {}))
 
         analysis = self._deterministic_analysis(snapshot)
 
@@ -2213,6 +2255,9 @@ Expected JSON object:
         safe_category = self._normalise_category(category)
         safe_submitter = self._clean_text(submitter_wallet, u256(120))
 
+        if self._lower(safe_submitter) != self._lower(self._sender_text()):
+            return ""
+
         content_hash = hashlib.sha256(
             (safe_content + safe_url + safe_summary).encode()
         ).hexdigest()
@@ -2239,6 +2284,8 @@ Expected JSON object:
             "final_report": {},
             "verification_hash": "",
             "stored": False,
+            "finalized": False,
+            "reputation_updated": False,
         }
 
         self.reports[report_id] = self._json_dumps(snapshot)
@@ -2253,6 +2300,12 @@ Expected JSON object:
 
         if snapshot == {}:
             return "[]"
+
+        if not self._is_report_sender(snapshot):
+            return "[]"
+
+        if self._has_final_report(snapshot) or snapshot.get("stored", False):
+            return self._json_dumps(snapshot.get("claims", []))
 
         claims = self._deterministic_extract_claims_list(
             str(snapshot.get("content", "")),
@@ -2271,6 +2324,12 @@ Expected JSON object:
 
         if snapshot == {}:
             return "{}"
+
+        if not self._is_report_sender(snapshot):
+            return "{}"
+
+        if self._has_final_report(snapshot) or snapshot.get("stored", False):
+            return self._json_dumps(snapshot.get("final_report", {}))
 
         analysis = snapshot.get("verification_analysis", {})
 
@@ -2366,6 +2425,12 @@ Expected JSON object:
         if snapshot == {}:
             return False
 
+        if not self._is_report_sender(snapshot):
+            return False
+
+        if snapshot.get("stored", False) or snapshot.get("finalized", False):
+            return True
+
         if snapshot.get("status", "") != "complete":
             return False
 
@@ -2381,6 +2446,7 @@ Expected JSON object:
         snapshot["verification_hash"] = verification_hash
         snapshot["stored_at"] = "seq:" + str(int(self.verification_count))
         snapshot["stored"] = True
+        snapshot["finalized"] = True
         self._store_snapshot(report_id, snapshot)
 
         analytics_key = "all_time"
@@ -2448,6 +2514,15 @@ Expected JSON object:
         if snapshot == {}:
             return current_score
 
+        if not self._is_report_sender(snapshot):
+            return current_score
+
+        if self._lower(wallet) != self._lower(self._snapshot_submitter(snapshot)):
+            return current_score
+
+        if snapshot.get("reputation_updated", False):
+            return current_score
+
         report = snapshot.get("final_report", {})
 
         if not isinstance(report, dict):
@@ -2489,6 +2564,9 @@ Expected JSON object:
         profile["last_verification"] = report_id
 
         self.profiles[wallet] = self._json_dumps(profile)
+
+        snapshot["reputation_updated"] = True
+        self._store_snapshot(report_id, snapshot)
 
         return new_score
 

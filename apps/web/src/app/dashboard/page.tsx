@@ -12,6 +12,10 @@ import {
   getTotalVerifications,
 } from "@/lib/trustdsource/service";
 import { getRecentReports } from "@/lib/genlayer/pipeline";
+import {
+  filterReportRows,
+  getRecentContractReports,
+} from "@/lib/trustdsource/reports";
 import type {
   TrustDSourceProfile,
   TrustDSourceAnalytics,
@@ -75,38 +79,25 @@ export default function DashboardPage() {
       if (a.data) setAnalytics(a.data);
       if (t.data != null) setTotalPlatform(Number(t.data));
 
-      try {
-        const res = await fetch(
-          `/api/index?wallet=${encodeURIComponent(address!)}&limit=5`
+      const contractRows = filterReportRows(await getRecentContractReports(50), {
+        wallet: address,
+      }).slice(0, 5);
+
+      if (!cancelled && contractRows.length > 0) {
+        setRecent(contractRows);
+      } else if (!cancelled) {
+        const local = getRecentReports()
+          .filter((r) => !r.wallet || r.wallet === address)
+          .slice(0, 5);
+        setRecent(
+          local.map((r) => ({
+            report_id: r.reportId,
+            title: r.title,
+            verdict: r.verdict ?? null,
+            credibility_score: r.credibility_score ?? null,
+            created_at: new Date(r.timestamp).toISOString(),
+          }))
         );
-        const json = await res.json();
-        if (!cancelled && Array.isArray(json.data) && json.data.length > 0) {
-          setRecent(json.data as IndexRow[]);
-        } else if (!cancelled) {
-          const local = getRecentReports().slice(0, 5);
-          setRecent(
-            local.map((r) => ({
-              report_id: r.reportId,
-              title: r.title,
-              verdict: r.verdict ?? null,
-              credibility_score: r.credibility_score ?? null,
-              created_at: new Date(r.timestamp).toISOString(),
-            }))
-          );
-        }
-      } catch {
-        if (!cancelled) {
-          const local = getRecentReports().slice(0, 5);
-          setRecent(
-            local.map((r) => ({
-              report_id: r.reportId,
-              title: r.title,
-              verdict: r.verdict ?? null,
-              credibility_score: r.credibility_score ?? null,
-              created_at: new Date(r.timestamp).toISOString(),
-            }))
-          );
-        }
       }
 
       // Always flip loading off, even if cancelled (avoids stuck skeleton)

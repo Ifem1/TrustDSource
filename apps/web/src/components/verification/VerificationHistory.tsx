@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
+import {
+  filterReportRows,
+  getRecentContractReports,
+} from "@/lib/trustdsource/reports";
 import { VERDICT_BG, VERDICT_LABELS, CATEGORY_LABELS } from "@/constants";
 import { formatTimeAgo, cn } from "@/lib/utils";
-import type { VerificationFull } from "@/types";
 
 interface VerificationHistoryProps {
   walletAddress?: string;
@@ -16,25 +18,17 @@ export function VerificationHistory({
   walletAddress,
   limit = 10,
 }: VerificationHistoryProps) {
-  const [verifications, setVerifications] = useState<VerificationFull[]>([]);
+  const [verifications, setVerifications] = useState<
+    Awaited<ReturnType<typeof getRecentContractReports>>
+  >([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
-      const supabase = createClient();
-      let query = supabase
-        .from("verification_full")
-        .select("*")
-        .eq("status", "complete")
-        .order("created_at", { ascending: false })
-        .limit(limit);
-
-      if (walletAddress) {
-        query = query.eq("submitter_wallet", walletAddress);
-      }
-
-      const { data } = await query;
-      if (data) setVerifications(data as unknown as VerificationFull[]);
+      const rows = await getRecentContractReports(Math.max(limit, 25));
+      setVerifications(
+        filterReportRows(rows, { wallet: walletAddress }).slice(0, limit)
+      );
       setLoading(false);
     }
     load();
@@ -73,8 +67,8 @@ export function VerificationHistory({
     <div className="space-y-3">
       {verifications.map((v) => (
         <Link
-          key={v.id}
-          href={`/report/${v.id}`}
+          key={v.report_id}
+          href={`/report/${v.report_id}`}
           className="card p-4 flex items-start gap-4 hover:border-trustLavender hover:shadow-glow-purple transition-all duration-200 block"
         >
           <div className="flex-1 min-w-0">
@@ -87,7 +81,7 @@ export function VerificationHistory({
               </span>
               <span className="text-xs text-secondaryText">·</span>
               <span className="text-xs text-secondaryText">
-                {CATEGORY_LABELS[v.category] || v.category}
+                {v.category ? CATEGORY_LABELS[v.category] || v.category : "Report"}
               </span>
             </div>
           </div>

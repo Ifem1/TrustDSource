@@ -27,7 +27,6 @@ The core value is the verifiable verification record.
 ## Stack
 
 - Frontend: Next.js, TypeScript, Tailwind CSS, App Router
-- Indexing: Supabase for optional report/profile mirrors
 - Smart contract: GenLayer Intelligent Contract in `contracts/TrustDSource.py`
 - Wallet: wagmi, viem, genlayer-js
 
@@ -37,7 +36,6 @@ The core value is the verifiable verification record.
 trustdsource/
 +-- apps/web/                 Next.js frontend
 +-- contracts/TrustDSource.py Unified GenLayer contract
-+-- supabase/                 Optional index schema, functions, and seed data
 +-- tests/contract/           Contract behavior tests
 +-- scripts/                  Setup and deployment notes
 ```
@@ -53,7 +51,6 @@ npm run dev
 Fill `apps/web/.env.local` with:
 
 - `NEXT_PUBLIC_GENLAYER_CONTRACT_ADDRESS`
-- Supabase URL and keys, if using the optional index
 - WalletConnect project ID, if required by your wallet setup
 
 ## Deploy the Contract

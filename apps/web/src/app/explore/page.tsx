@@ -10,17 +10,11 @@ import {
   CATEGORY_LABELS,
 } from "@/constants";
 import { formatTimeAgo, cn } from "@/lib/utils";
-import { checkIndexHealth, runResync } from "@/lib/trustdsource/sync";
-
-interface IndexRow {
-  report_id: string;
-  wallet: string;
-  title: string;
-  category: string | null;
-  verdict: string | null;
-  credibility_score: number | null;
-  created_at: string;
-}
+import {
+  filterReportRows,
+  getRecentContractReports,
+  type ContractReportRow,
+} from "@/lib/trustdsource/reports";
 
 const CATEGORIES = [
   "news",
@@ -44,90 +38,28 @@ const VERDICTS = [
 const PAGE_SIZE = 12;
 
 export default function ExplorePage() {
-  const [rows, setRows] = useState<IndexRow[]>([]);
+  const [rows, setRows] = useState<ContractReportRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [offline, setOffline] = useState(false);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string>("");
   const [verdict, setVerdict] = useState<string>("");
   const [page, setPage] = useState(0);
-  const [syncing, setSyncing] = useState(false);
-  const [chainAhead, setChainAhead] = useState<{
-    contract: number;
-    index: number;
-  } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams();
-    params.set("limit", String(PAGE_SIZE));
-    params.set("offset", String(page * PAGE_SIZE));
-    if (search) params.set("q", search);
-    if (category) params.set("category", category);
-    if (verdict) params.set("verdict", verdict);
-
-    try {
-      const res = await fetch(`/api/index?${params}`);
-      const json = await res.json();
-      setRows(json.data ?? []);
-      setOffline(Boolean(json.offline));
-    } catch {
-      setRows([]);
-      setOffline(true);
-    }
+    const allRows = await getRecentContractReports(100);
+    const filtered = filterReportRows(allRows, {
+      q: search,
+      category,
+      verdict,
+    });
+    setRows(filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE));
     setLoading(false);
   }, [search, category, verdict, page]);
 
   useEffect(() => {
     load();
   }, [load]);
-
-  // Self-healing: if the contract has more reports than the index,
-  // auto-trigger a resync the first time the page loads.
-  useEffect(() => {
-    if (loading || offline || syncing) return;
-    let cancelled = false;
-
-    async function check() {
-      const health = await checkIndexHealth();
-      if (cancelled) return;
-      if (!health.needsSync) {
-        setChainAhead(null);
-        return;
-      }
-      setChainAhead({
-        contract: health.contractTotal,
-        index: health.indexTotal,
-      });
-
-      // Auto-trigger only when the index is genuinely behind on initial load,
-      // not for every search/filter change.
-      if (rows.length === 0 && page === 0 && !search && !category && !verdict) {
-        setSyncing(true);
-        const result = await runResync(25);
-        if (cancelled) return;
-        setSyncing(false);
-        if (result.indexed > 0) {
-          await load();
-          setChainAhead(null);
-        }
-      }
-    }
-
-    check();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading]);
-
-  async function handleManualSync() {
-    setSyncing(true);
-    await runResync(25);
-    setSyncing(false);
-    await load();
-    setChainAhead(null);
-  }
 
   return (
     <div className="min-h-screen flex flex-col bg-background bg-mesh">
@@ -137,21 +69,10 @@ export default function ExplorePage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-primaryText">Explore Reports</h1>
           <p className="text-secondaryText mt-2">
-            Browse all completed GenLayer credibility verifications
+            Browse recent GenLayer credibility verifications directly from the contract
           </p>
         </div>
 
-        {offline && (
-          <div className="card p-4 mb-6 border-warningAmber bg-amber-50">
-            <p className="text-sm text-amber-800">
-              <strong>Indexing offline.</strong> The search index isn&apos;t
-              configured. New verifications still write on-chain — individual
-              reports are accessible by their report ID.
-            </p>
-          </div>
-        )}
-
-        {/* Filters */}
         <div className="card p-4 mb-8 flex flex-wrap gap-3 items-center">
           <input
             type="text"
@@ -219,48 +140,20 @@ export default function ExplorePage() {
             ))}
           </div>
         ) : rows.length === 0 ? (
-          chainAhead && chainAhead.contract > chainAhead.index ? (
-            <div className="card p-12 text-center max-w-lg mx-auto">
-              <div className="text-4xl mb-4">{syncing ? "⏳" : "🔄"}</div>
-              <h3 className="font-bold text-primaryText text-lg mb-2">
-                {syncing
-                  ? "Indexing latest reports…"
-                  : "Index catching up"}
-              </h3>
-              <p className="text-secondaryText text-sm mb-6">
-                {chainAhead.contract} verification
-                {chainAhead.contract === 1 ? "" : "s"} exist on-chain,{" "}
-                {chainAhead.index} indexed so far. The search index pulls from
-                the contract — this takes a moment for older reports.
-              </p>
-              {!syncing && (
-                <button onClick={handleManualSync} className="btn-primary">
-                  Sync now
-                </button>
-              )}
-              {syncing && (
-                <div className="flex items-center justify-center gap-2 text-sm text-graphPurple">
-                  <span className="w-4 h-4 border-2 border-graphPurple/30 border-t-graphPurple rounded-full animate-spin" />
-                  Reading from chain…
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="card p-12 text-center max-w-md mx-auto">
-              <div className="text-4xl mb-4">🔍</div>
-              <h3 className="font-bold text-primaryText text-lg mb-2">
-                No reports found
-              </h3>
-              <p className="text-secondaryText text-sm mb-6">
-                {search || category || verdict
-                  ? "Try adjusting your filters."
-                  : "Be the first to verify content."}
-              </p>
-              <Link href="/verify" className="btn-primary">
-                Start Verifying
-              </Link>
-            </div>
-          )
+          <div className="card p-12 text-center max-w-md mx-auto">
+            <div className="text-4xl mb-4">🔍</div>
+            <h3 className="font-bold text-primaryText text-lg mb-2">
+              No reports found
+            </h3>
+            <p className="text-secondaryText text-sm mb-6">
+              {search || category || verdict
+                ? "Try adjusting your filters."
+                : "Be the first to verify content."}
+            </p>
+            <Link href="/verify" className="btn-primary">
+              Start Verifying
+            </Link>
+          </div>
         ) : (
           <>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">

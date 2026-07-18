@@ -1,8 +1,32 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { getProfile } from "@/lib/trustdsource/service";
 import type { Profile } from "@/types";
+
+function contractProfileToProfile(
+  walletAddress: string,
+  raw: Record<string, unknown>
+): Profile {
+  const now = new Date().toISOString();
+  return {
+    id: walletAddress,
+    wallet_address: String(raw.wallet_address ?? walletAddress),
+    username: null,
+    display_name: null,
+    bio: null,
+    avatar_url: null,
+    reputation_score: Number(raw.reputation_score ?? 0),
+    reputation_tier: String(raw.reputation_tier ?? "new") as Profile["reputation_tier"],
+    total_verifications: Number(raw.total_verifications ?? 0),
+    accurate_verifications: 0,
+    researcher_score: Number(raw.reputation_score ?? 0),
+    is_researcher: Number(raw.total_verifications ?? 0) > 0,
+    genlayer_address: null,
+    created_at: now,
+    updated_at: now,
+  };
+}
 
 export function useProfile(walletAddress: string | null) {
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -17,15 +41,14 @@ export function useProfile(walletAddress: string | null) {
     setLoading(true);
     setError(null);
     try {
-      const supabase = createClient();
-      const { data, error: err } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("wallet_address", walletAddress)
-        .maybeSingle();
-
-      if (err) throw err;
-      setProfile(data);
+      const res = await getProfile(walletAddress);
+      if (res.error) throw new Error(res.error);
+      setProfile(
+        contractProfileToProfile(
+          walletAddress,
+          (res.data ?? {}) as unknown as Record<string, unknown>
+        )
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to fetch profile");
     } finally {
@@ -36,18 +59,11 @@ export function useProfile(walletAddress: string | null) {
   const createProfile = useCallback(async () => {
     if (!walletAddress) return null;
     try {
-      const supabase = createClient();
-      const { data, error: err } = await supabase
-        .from("profiles")
-        .insert({ wallet_address: walletAddress })
-        .select()
-        .single();
-
-      if (err) throw err;
+      const data = contractProfileToProfile(walletAddress, {});
       setProfile(data);
       return data;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to create profile");
+      setError(e instanceof Error ? e.message : "Failed to prepare profile");
       return null;
     }
   }, [walletAddress]);
