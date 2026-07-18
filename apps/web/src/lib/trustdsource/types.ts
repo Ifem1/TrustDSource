@@ -125,7 +125,7 @@ export const STATUS_LABELS: Record<string, string> = {
   claims_extracted: "Claims extracted",
   sources_fallback: "Submitted-source snapshot prepared",
   sources_analyzed: "Evidence references checked",
-  credibility_deterministic: "Deterministic credibility analysis complete",
+  credibility_deterministic: "Snapshot-only fallback analysis complete",
   credibility_analyzed: "Evidence-bounded credibility analysis complete",
   complete: "Verification complete",
 };

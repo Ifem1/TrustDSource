@@ -118,11 +118,11 @@ export function VerificationForm({ onSubmit, isLoading }: VerificationFormProps)
       </div>
 
       <div>
-        <label className="label">Evidence URLs</label>
+        <label className="label">Evidence URLs for GenLayer Fetch</label>
         <textarea
           {...register("evidence_urls")}
           className="input min-h-[96px] resize-y"
-          placeholder="Optional: Add external evidence URLs, one per line. GenLayer fetches these inside the contract."
+          placeholder="Recommended: add 2+ independent evidence URLs, one per line. GenLayer fetches these inside the contract."
         />
         {errors.evidence_urls && (
           <p className="text-riskRed text-xs mt-1">

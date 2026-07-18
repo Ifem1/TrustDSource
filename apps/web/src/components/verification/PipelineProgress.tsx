@@ -53,12 +53,12 @@ const STEPS: StepDef[] = [
   {
     key: "credibility_deterministic",
     label: "Credibility analysed",
-    sublabel: "Deterministic credibility analysis complete",
+    sublabel: "Snapshot-only fallback analysis complete",
   },
   {
     key: "credibility_analyzed",
     label: "Credibility analysed",
-    sublabel: "Evidence-bounded credibility analysis complete",
+    sublabel: "GenLayer evidence adjudication complete",
   },
   {
     key: "calculating_credibility",
@@ -125,7 +125,7 @@ export function PipelineProgress({
     { key: "submitting", label: "Submit & Snapshot", complete: currentIdx >= 1 },
     { key: "extracting_claims", label: "Extract Claims", complete: currentIdx >= 3 },
     { key: "discovering_sources", label: "Prepare Evidence", complete: currentIdx >= 5 },
-    { key: "verifying_claims", label: "Bound Verdict", complete: currentIdx >= 7 },
+    { key: "verifying_claims", label: "Adjudicate Evidence", complete: currentIdx >= 7 },
     { key: "calculating_credibility", label: "Calculate Score", complete: currentIdx >= 9 },
     { key: "storing_report", label: "Store On-Chain", complete: currentIdx >= 10 },
     { key: "updating_reputation", label: "Update Reputation", complete: currentIdx >= 11 },

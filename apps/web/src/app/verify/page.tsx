@@ -33,7 +33,7 @@ export default function VerifyPage() {
   const [pipeline, setPipeline] = useState<PipelineState>(initialPipelineState());
   const [recentReports, setRecentReports] = useState<RecentReport[]>([]);
   const [activeTab, setActiveTab] = useState<"form" | "recent">("form");
-  const [mode, setMode] = useState<PipelineMode>("fast");
+  const [mode, setMode] = useState<PipelineMode>("ai");
 
   useEffect(() => {
     setRecentReports(getRecentReports());
@@ -175,14 +175,14 @@ export default function VerifyPage() {
                             : "bg-surface text-primaryText border-border hover:border-graphPurple"
                         )}
                       >
-                        <p className="text-sm font-semibold">Fast snapshot</p>
+                        <p className="text-sm font-semibold">Snapshot fallback</p>
                         <p
                           className={cn(
                             "text-xs mt-0.5",
                             mode === "fast" ? "text-white/80" : "text-secondaryText"
                           )}
                         >
-                          Deterministic source signals
+                          Submitted evidence only
                         </p>
                       </button>
                       <button
@@ -195,14 +195,14 @@ export default function VerifyPage() {
                             : "bg-surface text-primaryText border-border hover:border-graphPurple"
                         )}
                       >
-                        <p className="text-sm font-semibold">Evidence-bound</p>
+                        <p className="text-sm font-semibold">GenLayer native</p>
                         <p
                           className={cn(
                             "text-xs mt-0.5",
                             mode === "ai" ? "text-white/80" : "text-secondaryText"
                           )}
                         >
-                          Web evidence, deterministic score
+                          Live evidence and AI validators
                         </p>
                       </button>
                     </div>

@@ -1,19 +1,19 @@
 ﻿/**
  * Unified-contract verification pipeline.
  *
- * Fast mode (default): all steps are deterministic on-chain.
+ * Evidence mode (default): GenLayer-native verification.
  *   1. submit_content
  *   2. extract_claims
- *   3. use_fallback_sources
- *   4. use_deterministic_credibility
+ *   3. analyse_sources(evidenceUrlsText)
+ *   4. analyse_credibility
  *   5. calculate_credibility
  *   6. store_report
  *   7. update_reputation
  *   8. get_report   (final read)
  *
- * Evidence mode (optional, slower): fetches evidence URLs in-contract, then
- * uses deterministic credibility scoring over the accepted evidence references.
- *   3. analyse_sources(evidenceUrlsText)
+ * Snapshot mode (fallback): stores submitted evidence and returns UNVERIFIED
+ * unless independent evidence is later supplied.
+ *   3. use_fallback_sources
  *   4. use_deterministic_credibility
  *
  * Every contract write goes through the user's wallet via writeFn.
@@ -80,7 +80,7 @@ export interface PipelineState {
   currentTxElapsedMs: number;
 }
 
-export function initialPipelineState(mode: PipelineMode = "fast"): PipelineState {
+export function initialPipelineState(mode: PipelineMode = "ai"): PipelineState {
   return {
     step: "idle",
     mode,
@@ -151,6 +151,32 @@ function pushTx(
 ): PipelineState["txHashes"] {
   if (!hash) return txHashes;
   return [...txHashes, { step, hash }];
+}
+
+function countIndependentEvidenceSources(sources: Source[]): number {
+  const domains = new Set<string>();
+
+  for (const source of sources) {
+    const evidenceKind = String(source.evidence_kind ?? "");
+    if (
+      evidenceKind === "submitted_source_snapshot" ||
+      evidenceKind === "contract_fetched_submitted_url"
+    ) {
+      continue;
+    }
+
+    const url = String(source.url ?? "");
+    const domain = String(source.domain ?? "").toLowerCase();
+    const snippet = String(source.snippet ?? "");
+
+    if (!url.startsWith("https://") && !url.startsWith("http://")) continue;
+    if (!domain) continue;
+    if (snippet.trim().length < 25) continue;
+
+    domains.add(domain);
+  }
+
+  return domains.size;
 }
 
 async function runStep<T>(
@@ -248,7 +274,7 @@ export async function runVerificationPipeline(
   options: PipelineOptions = {},
   startState?: PipelineState
 ): Promise<PipelineState> {
-  const mode: PipelineMode = options.mode ?? "fast";
+  const mode: PipelineMode = options.mode ?? "ai";
   let state: PipelineState = startState ?? initialPipelineState(mode);
   state.mode = mode;
 
@@ -352,6 +378,14 @@ export async function runVerificationPipeline(
   if (sourcesRes.error) return fail("discovering_sources", sourcesRes.error);
 
   const sources = parseSources(sourcesRes.data);
+  const independentSourceCount = countIndependentEvidenceSources(sources);
+  if (mode === "ai" && independentSourceCount < 2) {
+    return fail(
+      "discovering_sources",
+      "GenLayer did not accept enough independent live evidence. Add at least two accessible evidence URLs from different domains and retry."
+    );
+  }
+
   state = {
     ...state,
     step: mode === "ai" ? "sources_analyzed" : "sources_fallback",
@@ -363,7 +397,8 @@ export async function runVerificationPipeline(
   state = { ...state, step: "verifying_claims" };
   onStep(state);
 
-  const credibilityMethod = "use_deterministic_credibility";
+  const credibilityMethod =
+    mode === "ai" ? "analyse_credibility" : "use_deterministic_credibility";
 
   const credRes = await runStep<unknown>(
     writeFn,

@@ -21,20 +21,29 @@ const NUM_RUNS = Number(args.runs ?? 17); // ~7 writes/run -> ~7*17=119 too many
 
 const SAMPLE_ITEMS = [
   {
-    title: "NASA confirms water ice at lunar south pole",
-    url: "https://www.nasa.gov/news/lunar-south-pole-ice",
+    title: "NASA confirmed water ice at the Moon's poles on Aug. 20, 2018",
+    url: "https://www.jpl.nasa.gov/news/ice-confirmed-at-the-moons-poles/",
     content:
-      "NASA's LRO mission has confirmed significant water ice deposits in permanently shadowed craters at the Moon's south pole, a finding relevant to future Artemis missions.",
-    claimSummary: "NASA confirmed water ice deposits at the lunar south pole.",
+      "NASA's Jet Propulsion Laboratory reported on Aug. 20, 2018 that scientists directly observed definitive evidence of water ice at the Moon's poles using Moon Mineralogy Mapper data.",
+    claimSummary: "NASA confirmed definitive evidence of water ice at the Moon's poles on Aug. 20, 2018.",
     category: "science",
+    evidenceUrls: [
+      "https://www.jpl.nasa.gov/news/ice-confirmed-at-the-moons-poles/",
+      "https://science.nasa.gov/moon/moon-water-and-ices/",
+      "https://ntrs.nasa.gov/citations/20170003782",
+    ],
   },
   {
-    title: "WHO updates global vaccination guidance",
-    url: "https://www.who.int/news/vaccination-guidance-update",
+    title: "WHO and CDC estimated 10.3 million measles cases in 2023",
+    url: "https://www.who.int/news/item/14-11-2024-measles-cases-surge-worldwide--infecting-10.3-million-people-in-2023",
     content:
-      "The World Health Organization issued updated guidance on routine immunization schedules for 2026, citing new efficacy data from multi-country trials.",
-    claimSummary: "WHO updated its 2026 vaccination guidance based on new trial data.",
+      "On Nov. 14, 2024, WHO and CDC reported an estimated 10.3 million measles cases worldwide in 2023, about a 20 percent increase from 2022.",
+    claimSummary: "WHO and CDC estimated 10.3 million measles cases worldwide in 2023, a 20 percent increase from 2022.",
     category: "health",
+    evidenceUrls: [
+      "https://www.who.int/news/item/14-11-2024-measles-cases-surge-worldwide--infecting-10.3-million-people-in-2023",
+      "https://www.cdc.gov/media/releases/2024/p1114-measles-cases.html",
+    ],
   },
   {
     title: "Central bank holds interest rates steady",
@@ -102,6 +111,35 @@ async function write(client, functionName, writeArgs) {
   return { hash, receipt };
 }
 
+function parseJson(value, fallback) {
+  try {
+    return JSON.parse(String(value ?? ""));
+  } catch {
+    return fallback;
+  }
+}
+
+function countIndependentSources(sources) {
+  const domains = new Set();
+  for (const source of sources) {
+    const evidenceKind = String(source?.evidence_kind ?? "");
+    if (
+      evidenceKind === "submitted_source_snapshot" ||
+      evidenceKind === "contract_fetched_submitted_url"
+    ) {
+      continue;
+    }
+    const url = String(source?.url ?? "");
+    const domain = String(source?.domain ?? "").toLowerCase();
+    const snippet = String(source?.snippet ?? "");
+    if (!url.startsWith("https://") && !url.startsWith("http://")) continue;
+    if (!domain) continue;
+    if (snippet.trim().length < 25) continue;
+    domains.add(domain);
+  }
+  return domains.size;
+}
+
 async function runFullFlow(client, walletAddress, item, mode, runLabel) {
   const log = (msg) => console.log(`  [${runLabel}] ${msg}`);
 
@@ -137,15 +175,36 @@ async function runFullFlow(client, walletAddress, item, mode, runLabel) {
   await write(client, "extract_claims", [reportId]);
 
   if (mode === "ai") {
-    log(`analyse_sources (evidence mode) -> ${item.url}`);
-    await write(client, "analyse_sources", [reportId, item.url]);
+    const evidenceUrlsText = (item.evidenceUrls ?? [item.url]).join("\n");
+    log(`analyse_sources (evidence mode) -> ${evidenceUrlsText.replace(/\n/g, ", ")}`);
+    await write(client, "analyse_sources", [reportId, evidenceUrlsText]);
+
+    const snapshotRaw = await client.readContract({
+      address: CONTRACT_ADDRESS,
+      functionName: "get_snapshot",
+      args: [reportId],
+    });
+    const snapshot = parseJson(snapshotRaw, {});
+    const sources = Array.isArray(snapshot.sources) ? snapshot.sources : [];
+    const independentCount = countIndependentSources(sources);
+    log(`accepted independent sources = ${independentCount}`);
+    if (independentCount < 2) {
+      throw new Error(
+        `insufficient live evidence accepted (${independentCount}); not finalizing fallback report`
+      );
+    }
   } else {
     log("use_fallback_sources (fast mode)");
     await write(client, "use_fallback_sources", [reportId]);
   }
 
-  log("use_deterministic_credibility");
-  await write(client, "use_deterministic_credibility", [reportId]);
+  if (mode === "ai") {
+    log("analyse_credibility");
+    await write(client, "analyse_credibility", [reportId]);
+  } else {
+    log("use_deterministic_credibility (snapshot fallback)");
+    await write(client, "use_deterministic_credibility", [reportId]);
+  }
 
   log("calculate_credibility");
   await write(client, "calculate_credibility", [reportId]);
@@ -179,7 +238,7 @@ async function main() {
   for (let i = 0; i < NUM_RUNS; i++) {
     const wallet = wallets[i % wallets.length];
     const item = pickItem(i);
-    const mode = i % 3 === 0 ? "ai" : "fast"; // mostly fast, some evidence-mode
+    const mode = args.mode ? String(args.mode) : "ai";
     const label = `run ${i + 1}/${NUM_RUNS} acct=${i % wallets.length} mode=${mode}`;
     console.log(`\n=== ${label} ===`);
     try {
