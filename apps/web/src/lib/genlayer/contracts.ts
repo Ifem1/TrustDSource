@@ -7,7 +7,7 @@
 
 export const TRUSTDSOURCE_UNIFIED_ADDRESS =
   (process.env.NEXT_PUBLIC_GENLAYER_CONTRACT_ADDRESS ??
-    "0xefe7fD126aDB226e247d217Fd73a3d6FdA1fE01e") as `0x${string}`;
+    "0xe63A38f28eed95CC781aCfc0133F5f020a011c3c") as `0x${string}`;
 
 export const TRUSTDSOURCE_CONTRACTS = {
   unified: TRUSTDSOURCE_UNIFIED_ADDRESS,

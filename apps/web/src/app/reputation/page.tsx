@@ -6,20 +6,20 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { useWallet } from "@/hooks/useWallet";
 import { getProfile } from "@/lib/trustdsource/service";
+import { getContractLeaderboard } from "@/lib/trustdsource/reports";
 import type { TrustDSourceProfile } from "@/lib/trustdsource/types";
 import {
   REPUTATION_TIER_LABELS,
   REPUTATION_TIER_THRESHOLDS,
 } from "@/constants";
 import { truncateAddress, formatNumber, cn } from "@/lib/utils";
-import { checkIndexHealth, runResync } from "@/lib/trustdsource/sync";
 
 const TIER_ICONS: Record<string, string> = {
-  new: "🌱",
-  analyst: "🔍",
-  researcher: "📊",
-  trusted_researcher: "⭐",
-  verification_expert: "🏆",
+  new: "N",
+  analyst: "A",
+  researcher: "R",
+  trusted_researcher: "T",
+  verification_expert: "E",
 };
 
 const TIER_ORDER = [
@@ -43,15 +43,18 @@ export default function ReputationPage() {
   const { address, isConnected } = useWallet();
   const [profile, setProfile] = useState<TrustDSourceProfile | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
-  const [leaderboardOffline, setLeaderboardOffline] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
-      const tasks: Promise<unknown>[] = [];
+      setLoading(true);
+      const tasks: Promise<unknown>[] = [
+        getContractLeaderboard(50).then((data) => {
+          if (!cancelled) setLeaderboard(data);
+        }),
+      ];
 
       if (address) {
         tasks.push(
@@ -59,51 +62,14 @@ export default function ReputationPage() {
             if (!cancelled && r.data) setProfile(r.data);
           })
         );
+      } else {
+        setProfile(null);
       }
-
-      const loadLeaderboard = async () => {
-        try {
-          const r = await fetch("/api/leaderboard?limit=50");
-          const json = await r.json();
-          return {
-            data: (json.data ?? []) as LeaderboardRow[],
-            offline: Boolean(json.offline),
-          };
-        } catch {
-          return { data: [] as LeaderboardRow[], offline: true };
-        }
-      };
-
-      tasks.push(
-        loadLeaderboard().then(async ({ data, offline }) => {
-          if (cancelled) return;
-          setLeaderboardOffline(offline);
-
-          if (data.length > 0 || offline) {
-            setLeaderboard(data);
-            return;
-          }
-
-          // Empty leaderboard but the chain may have data — auto-heal
-          const health = await checkIndexHealth();
-          if (cancelled) return;
-          if (health.needsSync) {
-            setSyncing(true);
-            await runResync(25);
-            if (cancelled) return;
-            const refreshed = await loadLeaderboard();
-            if (cancelled) return;
-            setLeaderboard(refreshed.data);
-            setSyncing(false);
-          } else {
-            setLeaderboard(data);
-          }
-        })
-      );
 
       await Promise.all(tasks);
       if (!cancelled) setLoading(false);
     }
+
     load();
     return () => {
       cancelled = true;
@@ -123,7 +89,6 @@ export default function ReputationPage() {
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* Left — Your reputation + tier ladder */}
           <div className="space-y-6">
             {!isConnected ? (
               <div className="card p-6 text-center">
@@ -158,7 +123,9 @@ export default function ReputationPage() {
                         : "bg-surfaceSoft border-border"
                     )}
                   >
-                    <span className="text-xl">{TIER_ICONS[tier]}</span>
+                    <span className="w-8 h-8 rounded-full bg-surface border border-border flex items-center justify-center text-sm font-bold text-graphPurple">
+                      {TIER_ICONS[tier]}
+                    </span>
                     <div className="flex-1">
                       <p className="text-sm font-semibold text-primaryText">
                         {REPUTATION_TIER_LABELS[tier] ?? tier}
@@ -178,10 +145,10 @@ export default function ReputationPage() {
               </h3>
               <ul className="space-y-2">
                 {[
-                  { action: "Completed verification", pts: "+5–15" },
+                  { action: "Completed verification", pts: "+5-15" },
                   { action: "High credibility result", pts: "+15" },
                   { action: "Moderate credibility", pts: "+10" },
-                  { action: "Low credibility / unverified", pts: "+5–7" },
+                  { action: "Low credibility / unverified", pts: "+5-7" },
                 ].map((it) => (
                   <li
                     key={it.action}
@@ -197,18 +164,15 @@ export default function ReputationPage() {
             </div>
           </div>
 
-          {/* Right — Global Leaderboard */}
           <div className="lg:col-span-2">
             <div className="card overflow-hidden">
               <div className="p-5 border-b border-border flex items-center justify-between">
                 <h3 className="font-semibold text-primaryText">
                   Global Leaderboard
                 </h3>
-                {leaderboardOffline && (
-                  <span className="badge bg-amber-50 text-amber-700 border-amber-200 text-xs">
-                    Indexing offline
-                  </span>
-                )}
+                <span className="badge bg-graphPurple/10 text-graphPurple border-graphPurple/20 text-xs">
+                  Contract data
+                </span>
               </div>
 
               {loading ? (
@@ -229,36 +193,12 @@ export default function ReputationPage() {
                 </div>
               ) : leaderboard.length === 0 ? (
                 <div className="p-12 text-center">
-                  {leaderboardOffline ? (
-                    <>
-                      <p className="text-secondaryText text-sm mb-2">
-                        The leaderboard index isn&apos;t available.
-                      </p>
-                      <p className="text-xs text-secondaryText">
-                        Verifications still write on-chain. Once an index is
-                        running, contributors will appear here.
-                      </p>
-                    </>
-                  ) : syncing ? (
-                    <>
-                      <div className="text-3xl mb-3">⏳</div>
-                      <p className="text-primaryText text-sm font-semibold mb-2">
-                        Indexing leaderboard…
-                      </p>
-                      <p className="text-xs text-secondaryText">
-                        Reading contributors from the contract. Hang tight.
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-secondaryText text-sm mb-4">
-                        No contributors yet. Be the first!
-                      </p>
-                      <Link href="/verify" className="btn-primary">
-                        Start Verifying
-                      </Link>
-                    </>
-                  )}
+                  <p className="text-secondaryText text-sm mb-4">
+                    No contributors yet. Be the first!
+                  </p>
+                  <Link href="/verify" className="btn-primary">
+                    Start Verifying
+                  </Link>
                 </div>
               ) : (
                 <div className="divide-y divide-border">
@@ -284,9 +224,7 @@ export default function ReputationPage() {
                             : "bg-surfaceSoft text-secondaryText"
                         )}
                       >
-                        {entry.rank <= 3
-                          ? ["🥇", "🥈", "🥉"][entry.rank - 1]
-                          : entry.rank}
+                        {entry.rank}
                       </div>
 
                       <div className="flex-1 min-w-0">
@@ -295,7 +233,7 @@ export default function ReputationPage() {
                             {truncateAddress(entry.wallet)}
                           </span>
                           <span className="text-xs">
-                            {TIER_ICONS[entry.reputation_tier] ?? "🌱"}
+                            {TIER_ICONS[entry.reputation_tier] ?? "N"}
                           </span>
                         </div>
                         <p className="text-xs text-secondaryText">
@@ -325,10 +263,6 @@ export default function ReputationPage() {
   );
 }
 
-// ──────────────────────────────────────────────────────────────
-// Your reputation card
-// ──────────────────────────────────────────────────────────────
-
 function YourReputationCard({ profile }: { profile: TrustDSourceProfile }) {
   const tier = profile.reputation_tier;
   const repScore = profile.reputation_score;
@@ -353,7 +287,9 @@ function YourReputationCard({ profile }: { profile: TrustDSourceProfile }) {
         </p>
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-3xl">{TIER_ICONS[tier]}</span>
+            <span className="w-10 h-10 rounded-full bg-surface border border-border flex items-center justify-center text-base font-bold text-graphPurple">
+              {TIER_ICONS[tier] ?? "N"}
+            </span>
             <div>
               <p className="font-bold text-primaryText text-lg">
                 {REPUTATION_TIER_LABELS[tier] ?? tier}

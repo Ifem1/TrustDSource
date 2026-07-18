@@ -8,15 +8,11 @@
   "scripts": {
     "dev": "npm run dev --workspace=apps/web",
     "build": "npm run build --workspace=apps/web",
-    "lint": "npm run lint --workspace=apps/web",
-    "supabase:start": "npx supabase start",
-    "supabase:push": "npx supabase db push",
-    "supabase:generate": "npx supabase gen types typescript --local > apps/web/src/types/supabase.ts"
+    "lint": "npm run lint --workspace=apps/web"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.20",
     "postcss": "^8.5.1",
-    "supabase": "^2.26.9",
     "tailwindcss": "^3.4.17"
   }
 }
