@@ -21,28 +21,27 @@ const NUM_RUNS = Number(args.runs ?? 17); // ~7 writes/run -> ~7*17=119 too many
 
 const SAMPLE_ITEMS = [
   {
-    title: "NASA confirmed water ice at the Moon's poles on Aug. 20, 2018",
-    url: "https://www.jpl.nasa.gov/news/ice-confirmed-at-the-moons-poles/",
+    title: "Python 3.13.0 was released on Oct. 7, 2024",
+    url: "https://www.python.org/downloads/release/python-3130/",
     content:
-      "NASA's Jet Propulsion Laboratory reported on Aug. 20, 2018 that scientists directly observed definitive evidence of water ice at the Moon's poles using Moon Mineralogy Mapper data.",
-    claimSummary: "NASA confirmed definitive evidence of water ice at the Moon's poles on Aug. 20, 2018.",
-    category: "science",
+      "Python.org lists Python 3.13.0 as a stable release with a release date of Oct. 7, 2024. The Python documentation also describes Python 3.13 as the next major Python release.",
+    claimSummary: "Python 3.13.0 was released on Oct. 7, 2024.",
+    category: "research",
     evidenceUrls: [
-      "https://www.jpl.nasa.gov/news/ice-confirmed-at-the-moons-poles/",
-      "https://science.nasa.gov/moon/moon-water-and-ices/",
-      "https://ntrs.nasa.gov/citations/20170003782",
+      "https://www.python.org/downloads/release/python-3130/",
+      "https://docs.python.org/3.13/whatsnew/3.13.html",
     ],
   },
   {
-    title: "WHO and CDC estimated 10.3 million measles cases in 2023",
-    url: "https://www.who.int/news/item/14-11-2024-measles-cases-surge-worldwide--infecting-10.3-million-people-in-2023",
+    title: "HTTP 404 means Not Found",
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/404",
     content:
-      "On Nov. 14, 2024, WHO and CDC reported an estimated 10.3 million measles cases worldwide in 2023, about a 20 percent increase from 2022.",
-    claimSummary: "WHO and CDC estimated 10.3 million measles cases worldwide in 2023, a 20 percent increase from 2022.",
-    category: "health",
+      "MDN and RFC 9110 document HTTP status code 404 as Not Found, meaning the server cannot find the requested resource.",
+    claimSummary: "HTTP status code 404 means Not Found.",
+    category: "research",
     evidenceUrls: [
-      "https://www.who.int/news/item/14-11-2024-measles-cases-surge-worldwide--infecting-10.3-million-people-in-2023",
-      "https://www.cdc.gov/media/releases/2024/p1114-measles-cases.html",
+      "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/404",
+      "https://www.rfc-editor.org/rfc/rfc9110.html#name-404-not-found",
     ],
   },
   {
