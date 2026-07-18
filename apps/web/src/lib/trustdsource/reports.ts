@@ -35,6 +35,14 @@ export interface ContractLeaderboardRow {
 }
 
 function toReportRow(report: TrustDSourceReport): ContractReportRow {
+  const rawCreatedAt = report.created_at ? String(report.created_at) : "";
+  const createdAt =
+    !rawCreatedAt ||
+    rawCreatedAt.startsWith("seq:") ||
+    Number.isNaN(new Date(rawCreatedAt).getTime())
+      ? new Date().toISOString()
+      : rawCreatedAt;
+
   return {
     report_id: String(report.report_id ?? ""),
     wallet: String(report.submitter_wallet ?? ""),
@@ -63,9 +71,7 @@ function toReportRow(report: TrustDSourceReport): ContractReportRow {
     confidence:
       report.confidence != null ? Number(report.confidence) : null,
     ai_summary: report.ai_summary ? String(report.ai_summary) : null,
-    created_at: report.created_at
-      ? String(report.created_at)
-      : new Date().toISOString(),
+    created_at: createdAt,
   };
 }
 
