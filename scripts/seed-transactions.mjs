@@ -8,7 +8,7 @@ import { createClient, createAccount, generatePrivateKey } from "genlayer-js";
 import { studionet } from "genlayer-js/chains";
 import { TransactionStatus } from "genlayer-js/types";
 
-const CONTRACT_ADDRESS = "0xe63A38f28eed95CC781aCfc0133F5f020a011c3c";
+const CONTRACT_ADDRESS = "0x1D86e63eA31876A2af565C93110dcEE02e21C884";
 
 const args = Object.fromEntries(
   process.argv.slice(2).map((a) => {
@@ -22,14 +22,14 @@ const NUM_RUNS = Number(args.runs ?? 17); // ~7 writes/run -> ~7*17=119 too many
 const SAMPLE_ITEMS = [
   {
     title: "Python 3.13.0 was released on Oct. 7, 2024",
-    url: "https://www.python.org/downloads/release/python-3130/",
+    url: "",
     content:
       "Python.org lists Python 3.13.0 as a stable release with a release date of Oct. 7, 2024. The Python documentation also describes Python 3.13 as the next major Python release.",
     claimSummary: "Python 3.13.0 was released on Oct. 7, 2024.",
     category: "research",
     evidenceUrls: [
       "https://www.python.org/downloads/release/python-3130/",
-      "https://docs.python.org/3.13/whatsnew/3.13.html",
+      "https://en.wikipedia.org/wiki/Python_3.13",
     ],
   },
   {

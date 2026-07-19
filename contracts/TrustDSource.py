@@ -1144,32 +1144,15 @@ class TrustDSourceUnified(gl.Contract):
         if not safe_url.startswith("https://") and not safe_url.startswith("http://"):
             return ""
 
-        def leader_fn():
-            return gl.nondet.web.render(safe_url, mode="text")
-
-        def validator_fn(leader_result) -> bool:
-            if not self._validate_web_fetch_result(leader_result):
-                return False
-
-            try:
-                leader_text = self._clean_text(leader_result.calldata, u256(5000))
-                validator_text = self._clean_text(
-                    gl.nondet.web.render(safe_url, mode="text"),
-                    u256(5000),
-                )
-            except Exception:
-                return False
-
-            return self._web_fetches_substantially_agree(
-                leader_text,
-                validator_text,
-            )
+        def fetch_fn():
+            response = gl.nondet.web.request(safe_url, method="GET")
+            body = response.body.decode("utf-8")
+            if len(body) < 80:
+                return ""
+            return body[:700]
 
         try:
-            fetched = gl.vm.run_nondet_unsafe(
-                leader_fn,
-                validator_fn,
-            )
+            fetched = gl.eq_principle.strict_eq(fetch_fn)
         except Exception:
             fetched = ""
 
@@ -1508,35 +1491,8 @@ Expected JSON array:
         if primary_claim == "":
             primary_claim = str(snapshot.get("claim_summary", ""))[:700]
 
-        fetched_sources = self._build_contract_fetched_sources(evidence_urls_text, url)
-        fetched_sources_text = self._json_dumps(fetched_sources)
-
-        prompt = self.build_source_analysis_prompt(
-            url,
-            category,
-            primary_claim,
-            fetched_sources_text,
-        )
-
-        def leader_fn():
-            return gl.nondet.exec_prompt(prompt, response_format="json")
-
-        result = []
-        if len(fetched_sources) >= 2:
-            try:
-                result = gl.vm.run_nondet_unsafe(
-                    leader_fn,
-                    self._validate_sources_result,
-                )
-            except Exception:
-                result = []
-
-        raw_sources = self._normalise_source_result_to_list(result)
-        if len(raw_sources) == 0:
-            raw_sources = fetched_sources
-
         sources = self._clean_sources_list(
-            raw_sources,
+            self._build_contract_fetched_sources(evidence_urls_text, url),
             url,
             title,
             content,
