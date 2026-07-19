@@ -63,7 +63,7 @@ export function GenLayerProofPanel({
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-credibilityGreen" />
           <span className="text-xs font-semibold text-credibilityGreen">
-            Snapshot Locked
+            Evaluated through GenLayer validator consensus
           </span>
           <span className="text-xs text-secondaryText ml-auto">
             {new Date(snapshotTimestamp).toLocaleString()}
@@ -104,7 +104,7 @@ export function GenLayerProofPanel({
       {genlayerProof && (
         <details className="group">
           <summary className="text-xs font-medium text-graphPurple cursor-pointer hover:text-trustLavender transition-colors select-none">
-            View raw transaction data
+            View transaction metadata
           </summary>
           <pre className="mt-3 text-xs font-mono text-secondaryText bg-surfaceSoft rounded-xl p-4 border border-border overflow-auto max-h-48 scrollbar-thin">
             {JSON.stringify(genlayerProof, null, 2)}

@@ -149,6 +149,7 @@ export function SourcesLiveCard({ sources }: SourcesLiveCardProps) {
                   )}
                   <span className="text-xs text-secondaryText">
                     {source.domain}
+                    {source.http_status ? ` · HTTP ${source.http_status}` : ""}
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -166,10 +167,17 @@ export function SourcesLiveCard({ sources }: SourcesLiveCardProps) {
                         : "bg-red-50 text-red-700 border-red-200"
                     )}
                   >
-                    {source.is_supporting ? "Supporting" : "Conflicting"}
+                    {source.source_verdict?.replace(/_/g, " ") ??
+                      (source.is_supporting ? "Supporting" : "Conflicting")}
                   </span>
                 </div>
               </div>
+
+              {source.verification_note && (
+                <p className="text-xs font-medium text-graphPurple mt-1.5">
+                  {source.verification_note}
+                </p>
+              )}
 
               {source.snippet && (
                 <p className="text-xs text-secondaryText mt-1.5 line-clamp-2">
@@ -177,16 +185,52 @@ export function SourcesLiveCard({ sources }: SourcesLiveCardProps) {
                 </p>
               )}
 
+              {source.evidence && source.evidence.length > 0 && (
+                <div className="space-y-1 mt-1.5">
+                  {source.evidence.slice(0, 2).map((item, index) => (
+                    <div
+                      key={`${item.relationship}-${index}`}
+                      className="rounded-md border border-border bg-surface px-2 py-1.5"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-semibold text-primaryText">
+                          {item.relationship}
+                        </span>
+                        {item.locator && (
+                          <span className="text-[11px] text-secondaryText truncate">
+                            {item.locator}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-secondaryText line-clamp-2">
+                        {item.statement}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="flex items-center gap-2 mt-1.5">
                 <span className="text-xs text-secondaryText bg-surfaceSoft rounded px-1.5 py-0.5 border border-border">
                   {source.source_type}
                 </span>
+                {source.credibility_band && (
+                  <span className="text-xs text-secondaryText bg-surfaceSoft rounded px-1.5 py-0.5 border border-border">
+                    {source.credibility_band}
+                  </span>
+                )}
                 {relevancePct > 0 && (
                   <span className="text-xs text-secondaryText ml-auto">
                     Relevance: {relevancePct}%
                   </span>
                 )}
               </div>
+
+              {(source.normalized_evidence_hash || source.evidence_hash) && (
+                <p className="text-[11px] text-secondaryText font-mono truncate mt-1.5">
+                  Hash: {source.normalized_evidence_hash ?? source.evidence_hash}
+                </p>
+              )}
             </div>
           );
         })}

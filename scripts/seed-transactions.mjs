@@ -8,7 +8,7 @@ import { createClient, createAccount, generatePrivateKey } from "genlayer-js";
 import { studionet } from "genlayer-js/chains";
 import { TransactionStatus } from "genlayer-js/types";
 
-const CONTRACT_ADDRESS = "0x1D86e63eA31876A2af565C93110dcEE02e21C884";
+const CONTRACT_ADDRESS = "0xe90847463f1D9C663c2946B6DE718538F2226d0A";
 
 const args = Object.fromEntries(
   process.argv.slice(2).map((a) => {

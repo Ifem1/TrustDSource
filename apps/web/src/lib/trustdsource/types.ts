@@ -15,16 +15,28 @@ export type Claim = {
 
 export type Source = {
   url: string;
+  requested_url?: string;
+  resolved_url?: string;
   title: string;
   domain: string;
   publication: string;
   credibility_score: number;
+  credibility_band?: string;
   source_type: string;
   is_supporting: boolean;
   relevance_score: string;
   snippet: string;
+  evidence?: {
+    statement: string;
+    relationship: string;
+    locator: string;
+  }[];
   evidence_kind?: string;
   evidence_hash?: string;
+  normalized_evidence_hash?: string;
+  source_verdict?: string;
+  reasoning?: string;
+  http_status?: number;
   verification_note?: string;
 };
 

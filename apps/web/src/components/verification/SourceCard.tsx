@@ -13,6 +13,13 @@ const SOURCE_TYPE_LABELS: Record<string, string> = {
   blog: "Blog",
   social: "Social",
   other: "Other",
+  GOVERNMENT: "Government",
+  OFFICIAL: "Official",
+  ACADEMIC: "Academic",
+  NEWS: "News",
+  ORGANIZATION: "Organization",
+  COMMUNITY: "Community",
+  OTHER: "Other",
 };
 
 export function SourceCard({ source }: SourceCardProps) {
@@ -39,7 +46,10 @@ export function SourceCard({ source }: SourceCardProps) {
           >
             {source.title || source.domain}
           </a>
-          <span className="text-xs text-secondaryText">{source.domain}</span>
+          <span className="text-xs text-secondaryText">
+            {source.domain}
+            {source.http_status ? ` · HTTP ${source.http_status}` : ""}
+          </span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <span className="text-xs font-bold" style={{ color: scoreColor }}>
@@ -53,10 +63,17 @@ export function SourceCard({ source }: SourceCardProps) {
                 : "bg-red-50 text-red-700 border-red-200"
             )}
           >
-            {source.is_supporting ? "Supporting" : "Conflicting"}
+            {source.source_verdict?.replace(/_/g, " ") ??
+              (source.is_supporting ? "Supporting" : "Conflicting")}
           </span>
         </div>
       </div>
+
+      {source.verification_note && (
+        <p className="text-xs font-medium text-graphPurple">
+          {source.verification_note}
+        </p>
+      )}
 
       {source.snippet && (
         <p className="text-xs text-secondaryText line-clamp-2">
@@ -64,10 +81,44 @@ export function SourceCard({ source }: SourceCardProps) {
         </p>
       )}
 
+      {source.evidence && source.evidence.length > 0 && (
+        <div className="space-y-1.5">
+          {source.evidence.slice(0, 3).map((item, index) => (
+            <div
+              key={`${item.relationship}-${index}`}
+              className="rounded-md border border-border bg-surfaceSoft px-3 py-2"
+            >
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="text-[11px] font-semibold text-primaryText">
+                  {item.relationship}
+                </span>
+                {item.locator && (
+                  <span className="text-[11px] text-secondaryText truncate">
+                    {item.locator}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-secondaryText line-clamp-3">
+                {item.statement}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {source.reasoning && (
+        <p className="text-xs text-secondaryText">{source.reasoning}</p>
+      )}
+
       <div className="flex items-center gap-2">
         <span className="badge bg-surfaceSoft text-secondaryText border-border text-xs">
           {SOURCE_TYPE_LABELS[source.source_type] || source.source_type}
         </span>
+        {source.credibility_band && (
+          <span className="badge bg-surfaceSoft text-secondaryText border-border text-xs">
+            {source.credibility_band}
+          </span>
+        )}
         {source.publication && (
           <span className="text-xs text-secondaryText">{source.publication}</span>
         )}
@@ -82,6 +133,12 @@ export function SourceCard({ source }: SourceCardProps) {
           </span>
         )}
       </div>
+
+      {(source.normalized_evidence_hash || source.evidence_hash) && (
+        <div className="text-[11px] text-secondaryText font-mono truncate border-t border-border pt-2">
+          Evidence hash: {source.normalized_evidence_hash ?? source.evidence_hash}
+        </div>
+      )}
     </div>
   );
 }

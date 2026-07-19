@@ -50,18 +50,44 @@ export default function ReportPage() {
           .filter((s): s is Record<string, unknown> => typeof s === "object" && s !== null)
           .map((s) => ({
             url: String(s.url ?? ""),
+            requested_url: s.requested_url ? String(s.requested_url) : undefined,
+            resolved_url: s.resolved_url ? String(s.resolved_url) : undefined,
             title: String(s.title ?? ""),
             domain: String(s.domain ?? ""),
             publication: String(s.publication ?? ""),
             credibility_score: Number(s.credibility_score ?? 0),
+            credibility_band: s.credibility_band
+              ? String(s.credibility_band)
+              : undefined,
             source_type: String(s.source_type ?? "other"),
             is_supporting: s.is_supporting !== false,
             relevance_score: String(s.relevance_score ?? "0.5"),
             snippet: String(s.snippet ?? ""),
+            evidence: Array.isArray(s.evidence)
+              ? s.evidence
+                  .filter(
+                    (item): item is Record<string, unknown> =>
+                      typeof item === "object" && item !== null
+                  )
+                  .map((item) => ({
+                    statement: String(item.statement ?? ""),
+                    relationship: String(item.relationship ?? "CONTEXT"),
+                    locator: String(item.locator ?? ""),
+                  }))
+              : undefined,
             evidence_kind: s.evidence_kind
               ? String(s.evidence_kind)
               : undefined,
             evidence_hash: s.evidence_hash ? String(s.evidence_hash) : undefined,
+            normalized_evidence_hash: s.normalized_evidence_hash
+              ? String(s.normalized_evidence_hash)
+              : undefined,
+            source_verdict: s.source_verdict
+              ? String(s.source_verdict)
+              : undefined,
+            reasoning: s.reasoning ? String(s.reasoning) : undefined,
+            http_status:
+              s.http_status != null ? Number(s.http_status) : undefined,
             verification_note: s.verification_note
               ? String(s.verification_note)
               : undefined,

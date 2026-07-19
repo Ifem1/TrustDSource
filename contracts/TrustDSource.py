@@ -63,6 +63,11 @@ class TrustDSourceUnified(gl.Contract):
     def _hash_text(self, value) -> str:
         return hashlib.sha256(str(value).encode()).hexdigest()
 
+    def _hash_canonical_json(self, value) -> str:
+        return hashlib.sha256(
+            json.dumps(value, sort_keys=True).encode()
+        ).hexdigest()
+
     def _clean_text(self, value, max_len: u256) -> str:
         text = str(value).strip()
         limit = int(max_len)
@@ -78,6 +83,84 @@ class TrustDSourceUnified(gl.Contract):
             return text[:limit]
 
         return text
+
+    def _strip_html_tags(self, value: str) -> str:
+        html = str(value)
+        lowered = html.lower()
+
+        for tag in ["script", "style", "noscript", "svg", "nav", "footer", "header"]:
+            start_token = "<" + tag
+            end_token = "</" + tag + ">"
+
+            while True:
+                start = lowered.find(start_token)
+                if start < 0:
+                    break
+
+                end = lowered.find(end_token, start)
+                if end < 0:
+                    html = html[:start]
+                    lowered = html.lower()
+                    break
+
+                end = end + len(end_token)
+                html = html[:start] + " " + html[end:]
+                lowered = html.lower()
+
+        text = ""
+        inside = False
+
+        for char in html:
+            if char == "<":
+                inside = True
+                text = text + " "
+            elif char == ">":
+                inside = False
+                text = text + " "
+            elif not inside:
+                text = text + char
+
+        replacements = [
+            ("&nbsp;", " "),
+            ("&amp;", "&"),
+            ("&quot;", '"'),
+            ("&#39;", "'"),
+            ("&lt;", "<"),
+            ("&gt;", ">"),
+        ]
+
+        for old, new in replacements:
+            text = text.replace(old, new)
+
+        text = self._clean_text(text, u256(5000))
+
+        notice = "Notice: This page displays a fallback because interactive scripts did not run."
+        notice_index = text.find(notice)
+
+        if notice_index >= 0:
+            next_note = text.find("Note:", notice_index + len(notice))
+
+            if next_note > notice_index:
+                text = text[:notice_index] + " " + text[next_note:]
+
+        return self._clean_text(text, u256(5000))
+
+    def _extract_html_title(self, html: str, fallback: str) -> str:
+        raw = str(html)
+        lowered = raw.lower()
+        start = lowered.find("<title")
+
+        if start >= 0:
+            start = lowered.find(">", start)
+            end = lowered.find("</title>", start)
+
+            if start >= 0 and end > start:
+                title = self._strip_html_tags(raw[start + 1:end])
+
+                if title != "":
+                    return self._clean_text(title, u256(180))
+
+        return self._clean_text(fallback, u256(180))
 
     def _lower(self, value) -> str:
         return str(value).lower().strip()
@@ -135,6 +218,20 @@ class TrustDSourceUnified(gl.Contract):
             return 100
 
         return score
+
+    def _normalise_http_status(self, value) -> int:
+        try:
+            status = int(str(value).strip())
+        except Exception:
+            return 0
+
+        if status < 0:
+            return 0
+
+        if status > 999:
+            return 0
+
+        return status
 
     def _normalise_decimal_string(self, value) -> str:
         text = str(value).strip()
@@ -383,18 +480,43 @@ class TrustDSourceUnified(gl.Contract):
             },
             "source_schema": {
                 "url": "str",
+                "requested_url": "str",
+                "resolved_url": "str",
                 "title": "str",
                 "domain": "str",
                 "publication": "str",
                 "credibility_score": "int:0-100",
+                "credibility_band": "HIGH|MEDIUM|LOW|UNKNOWN",
                 "source_type": "str",
                 "is_supporting": "bool",
                 "relevance_score": "str:0.0-1.0",
-                "snippet": "str",
+                "snippet": "str:compact evidence only, never raw HTML",
+                "source_verdict": "SUPPORTED|CONTRADICTED|INSUFFICIENT_EVIDENCE|SOURCE_UNAVAILABLE",
+                "normalized_evidence_hash": "sha256 canonical structured evidence",
             },
         }
 
         return self._json_dumps(metadata)
+
+    @gl.public.view
+    def preview_compact_evidence_from_text(
+        self,
+        claim: str,
+        requested_url: str,
+        resolved_url: str,
+        http_status: int,
+        content_type: str,
+        body: str,
+    ) -> str:
+        result = self._compact_source_result_from_body(
+            claim,
+            requested_url,
+            resolved_url,
+            self._normalise_http_status(http_status),
+            content_type,
+            body,
+        )
+        return self._json_dumps(result)
 
     # ==========================================================
     # Domain/source helpers
@@ -417,6 +539,85 @@ class TrustDSourceUnified(gl.Contract):
             domain = domain[4:]
 
         return domain
+
+    def _canonicalize_url(self, url: str) -> str:
+        clean = self._clean_text(url, u256(500))
+
+        if clean == "":
+            return ""
+
+        if " " in clean:
+            return ""
+
+        lowered = self._lower(clean)
+
+        if not lowered.startswith("https://") and not lowered.startswith("http://"):
+            return ""
+
+        if lowered.startswith("file:") or lowered.startswith("data:"):
+            return ""
+
+        fragment_index = clean.find("#")
+        if fragment_index >= 0:
+            clean = clean[:fragment_index]
+
+        while clean.endswith("/") and clean.count("/") > 2:
+            clean = clean[:-1]
+
+        domain = self.extract_domain(clean)
+
+        if domain == "":
+            return ""
+
+        if domain == "localhost" or domain.startswith("127.") or domain.startswith("10."):
+            return ""
+
+        return clean
+
+    def _domain_matches(self, first_url: str, second_url: str) -> bool:
+        return self.extract_domain(first_url) == self.extract_domain(second_url)
+
+    def _source_type_for_compact_result(self, domain: str) -> str:
+        local_type = self.infer_source_type(domain)
+
+        if local_type == "government":
+            return "GOVERNMENT"
+
+        if local_type == "academic":
+            return "ACADEMIC"
+
+        if local_type == "fact_check":
+            return "ORGANIZATION"
+
+        if local_type == "news":
+            return "NEWS"
+
+        if self._is_high_credibility_domain(domain):
+            return "OFFICIAL"
+
+        clean = self._lower(domain)
+
+        if clean.endswith(".org") or clean == "who.int":
+            return "ORGANIZATION"
+
+        if local_type == "social":
+            return "COMMUNITY"
+
+        return "OTHER"
+
+    def _credibility_band_from_score(self, score: int) -> str:
+        clean_score = self._normalise_score_int(score)
+
+        if clean_score >= 80:
+            return "HIGH"
+
+        if clean_score >= 55:
+            return "MEDIUM"
+
+        if clean_score > 0:
+            return "LOW"
+
+        return "UNKNOWN"
 
     def _is_high_credibility_domain(self, domain: str) -> bool:
         clean = self._lower(domain)
@@ -741,8 +942,26 @@ class TrustDSourceUnified(gl.Contract):
 
     def _split_sentences(self, text: str):
         clean = self._clean_text(text, u256(3000))
+        protected = ""
+        i = 0
 
-        clean = clean.replace("?", ".")
+        while i < len(clean):
+            char = clean[i]
+
+            if char == "." and i > 0 and i + 1 < len(clean):
+                previous_char = clean[i - 1]
+                next_char = clean[i + 1]
+
+                if previous_char >= "0" and previous_char <= "9" and next_char >= "0" and next_char <= "9":
+                    protected = protected + "<DOT>"
+                else:
+                    protected = protected + char
+            else:
+                protected = protected + char
+
+            i = i + 1
+
+        clean = protected.replace("?", ".")
         clean = clean.replace("!", ".")
         clean = clean.replace(";", ".")
         clean = clean.replace(" * ", ". ")
@@ -752,7 +971,7 @@ class TrustDSourceUnified(gl.Contract):
         parts = []
 
         for part in raw_parts:
-            sentence = self._clean_text(part, u256(700))
+            sentence = self._clean_text(part.replace("<DOT>", "."), u256(700))
 
             if sentence != "":
                 parts.append(sentence)
@@ -1065,130 +1284,551 @@ class TrustDSourceUnified(gl.Contract):
 
         return urls
 
-    def _validate_web_fetch_result(self, leader_result) -> bool:
+    def _claim_keywords(self, claim: str):
+        clean = self._lower(claim)
+        tokens = []
+        stops = [
+            "the", "and", "that", "this", "with", "from", "were", "was",
+            "are", "for", "has", "have", "about", "into", "onto", "their",
+            "there", "than", "then", "been", "being", "will", "would",
+        ]
+
+        for raw in clean.replace(",", " ").replace(".", " ").replace(":", " ").replace(";", " ").replace("-", " ").split(" "):
+            token = raw.strip()
+
+            if len(token) < 4:
+                continue
+
+            is_stop = False
+            for stop in stops:
+                if token == stop:
+                    is_stop = True
+
+            if is_stop:
+                continue
+
+            duplicate = False
+            for existing in tokens:
+                if existing == token:
+                    duplicate = True
+
+            if not duplicate:
+                tokens.append(token)
+
+            if len(tokens) >= 12:
+                break
+
+        return tokens
+
+    def _keyword_overlap_count(self, text: str, keywords) -> int:
+        lowered = self._lower(text)
+        count = 0
+
+        for keyword in keywords:
+            if keyword in lowered:
+                count = count + 1
+
+        return count
+
+    def _extract_relevant_evidence(self, claim: str, page_text: str, page_title: str):
+        keywords = self._claim_keywords(claim)
+        sentences = self._split_sentences(page_text)
+        evidence = []
+        seen = []
+
+        if self._keyword_overlap_count(page_text, keywords) >= 2:
+            lower_page = self._lower(page_text)
+            first_index = -1
+            label_index = lower_page.find("release date")
+
+            if label_index >= 0:
+                first_index = label_index
+
+            if first_index < 0:
+                for keyword in keywords:
+                    index = lower_page.find(keyword)
+
+                    if index >= 0:
+                        if first_index == -1 or index < first_index:
+                            first_index = index
+
+            if first_index < 0:
+                first_index = 0
+
+            start = first_index - 40
+            if start < 0:
+                start = 0
+
+            statement = self._clean_text(page_text[start:start + 260], u256(260))
+
+            if len(statement) >= 30:
+                evidence.append({
+                    "statement": statement,
+                    "relationship": "SUPPORTS",
+                    "locator": self._clean_text(page_title, u256(120)),
+                })
+
+        for sentence in sentences:
+            if len(evidence) >= 3:
+                break
+
+            clean_sentence = self._clean_text(sentence, u256(260))
+
+            if len(clean_sentence) < 30:
+                continue
+
+            if self._keyword_overlap_count(clean_sentence, keywords) < 2:
+                continue
+
+            lower_sentence = self._lower(clean_sentence)
+            duplicate = False
+
+            for existing in seen:
+                if existing == lower_sentence:
+                    duplicate = True
+
+            if duplicate:
+                continue
+
+            seen.append(lower_sentence)
+            evidence.append({
+                "statement": clean_sentence,
+                "relationship": "SUPPORTS",
+                "locator": self._clean_text(page_title, u256(120)),
+            })
+
+            if len(evidence) >= 3:
+                break
+
+        if len(evidence) == 0 and self._keyword_overlap_count(page_text, keywords) >= 2:
+            bounded_text = self._clean_text(page_text, u256(260))
+
+            if len(bounded_text) >= 30:
+                evidence.append({
+                    "statement": bounded_text,
+                    "relationship": "SUPPORTS",
+                    "locator": self._clean_text(page_title, u256(120)),
+                })
+
+        if len(evidence) == 0 and len(sentences) > 0:
+            fallback = self._clean_text(sentences[0], u256(220))
+
+            if len(fallback) >= 30:
+                evidence.append({
+                    "statement": fallback,
+                    "relationship": "CONTEXT",
+                    "locator": self._clean_text(page_title, u256(120)),
+                })
+
+        return evidence
+
+    def _compact_evidence_hash_input(self, result):
+        evidence = result.get("evidence", [])
+
+        if not isinstance(evidence, list):
+            evidence = []
+
+        stable_evidence = []
+        for item in evidence:
+            if not isinstance(item, dict):
+                continue
+
+            stable_evidence.append({
+                "locator": self._clean_text(item.get("locator", ""), u256(120)),
+                "relationship": self._clean_text(item.get("relationship", ""), u256(20)),
+                "statement": self._clean_text(item.get("statement", ""), u256(260)),
+            })
+
+            if len(stable_evidence) >= 3:
+                break
+
+        return {
+            "schema_version": 1,
+            "claim": self._clean_text(result.get("claim", ""), u256(700)),
+            "requested_url": self._canonicalize_url(str(result.get("requested_url", ""))),
+            "resolved_url": self._canonicalize_url(str(result.get("resolved_url", ""))),
+            "domain": self.extract_domain(str(result.get("resolved_url", ""))),
+            "source_title": self._clean_text(result.get("source_title", ""), u256(180)),
+            "source_type": self._clean_text(result.get("source_type", "OTHER"), u256(40)),
+            "http_status": self._normalise_http_status(result.get("http_status", 0)),
+            "verdict": self._clean_text(result.get("verdict", "SOURCE_UNAVAILABLE"), u256(40)),
+            "credibility_band": self._clean_text(result.get("credibility_band", "UNKNOWN"), u256(20)),
+            "credibility_score": self._normalise_score_int(result.get("credibility_score", 0)),
+            "evidence": stable_evidence,
+        }
+
+    def _finalize_compact_evidence_result(self, result):
+        compact = self._compact_evidence_hash_input(result)
+        compact["reasoning"] = self._clean_text(result.get("reasoning", ""), u256(420))
+        compact["normalized_evidence_hash"] = self._hash_canonical_json(
+            self._compact_evidence_hash_input(compact)
+        )
+        return compact
+
+    def _compact_source_result_from_body(
+        self,
+        claim: str,
+        requested_url: str,
+        resolved_url: str,
+        http_status: int,
+        content_type: str,
+        body: str,
+    ):
+        safe_claim = self._clean_text(claim, u256(700))
+        canonical_requested = self._canonicalize_url(requested_url)
+        canonical_resolved = self._canonicalize_url(resolved_url)
+
+        if canonical_requested == "":
+            return self._finalize_compact_evidence_result({
+                "claim": safe_claim,
+                "requested_url": "",
+                "resolved_url": "",
+                "source_title": "",
+                "source_type": "OTHER",
+                "http_status": 0,
+                "verdict": "SOURCE_UNAVAILABLE",
+                "credibility_band": "UNKNOWN",
+                "credibility_score": 0,
+                "evidence": [],
+                "reasoning": "The supplied URL is empty, malformed, or uses an unsupported scheme.",
+            })
+
+        if canonical_resolved == "":
+            canonical_resolved = canonical_requested
+
+        domain = self.extract_domain(canonical_resolved)
+        score = int(self.score_domain(domain))
+        source_type = self._source_type_for_compact_result(domain)
+        content_type_clean = self._lower(content_type)
+
+        if content_type_clean != "" and "text/html" not in content_type_clean and "text/plain" not in content_type_clean and "application/json" not in content_type_clean:
+            return self._finalize_compact_evidence_result({
+                "claim": safe_claim,
+                "requested_url": canonical_requested,
+                "resolved_url": canonical_resolved,
+                "source_title": domain,
+                "source_type": source_type,
+                "http_status": http_status,
+                "verdict": "SOURCE_UNAVAILABLE",
+                "credibility_band": "UNKNOWN",
+                "credibility_score": 0,
+                "evidence": [],
+                "reasoning": "The fetched source used an unsupported content type for text evidence.",
+            })
+
+        if http_status >= 400 or body == "":
+            return self._finalize_compact_evidence_result({
+                "claim": safe_claim,
+                "requested_url": canonical_requested,
+                "resolved_url": canonical_resolved,
+                "source_title": domain,
+                "source_type": source_type,
+                "http_status": http_status,
+                "verdict": "SOURCE_UNAVAILABLE",
+                "credibility_band": "UNKNOWN",
+                "credibility_score": 0,
+                "evidence": [],
+                "reasoning": "The source was unavailable or returned an empty body.",
+            })
+
+        if len(str(body)) > 120000:
+            body = str(body)[:120000]
+
+        page_title = self._extract_html_title(body, domain)
+        page_text = self._strip_html_tags(body)
+
+        if len(page_text) < 60:
+            return self._finalize_compact_evidence_result({
+                "claim": safe_claim,
+                "requested_url": canonical_requested,
+                "resolved_url": canonical_resolved,
+                "source_title": page_title,
+                "source_type": source_type,
+                "http_status": http_status,
+                "verdict": "SOURCE_UNAVAILABLE",
+                "credibility_band": "UNKNOWN",
+                "credibility_score": 0,
+                "evidence": [],
+                "reasoning": "The source did not contain enough readable text after removing scripts, styles, and navigation.",
+            })
+
+        evidence = self._extract_relevant_evidence(safe_claim, page_text, page_title)
+        verdict = "INSUFFICIENT_EVIDENCE"
+        reasoning = "The source was readable, but the accepted evidence did not directly support or contradict the claim."
+
+        if len(evidence) > 0:
+            first_relationship = str(evidence[0].get("relationship", "CONTEXT"))
+
+            if first_relationship == "SUPPORTS":
+                verdict = "SUPPORTED"
+                reasoning = "The fetched source contains relevant factual material that supports the submitted claim."
+            elif first_relationship == "CONTRADICTS":
+                verdict = "CONTRADICTED"
+                reasoning = "The fetched source contains relevant factual material that contradicts the submitted claim."
+
+        return self._finalize_compact_evidence_result({
+            "claim": safe_claim,
+            "requested_url": canonical_requested,
+            "resolved_url": canonical_resolved,
+            "source_title": page_title,
+            "source_type": source_type,
+            "http_status": http_status,
+            "verdict": verdict,
+            "credibility_band": self._credibility_band_from_score(score),
+            "credibility_score": score,
+            "evidence": evidence,
+            "reasoning": reasoning,
+        })
+
+    def _safe_response_status(self, response, body: str) -> int:
+        status = 0
+
+        for field in ["status", "status_code", "code"]:
+            try:
+                value = getattr(response, field)
+                status = int(value)
+            except Exception:
+                pass
+
+        if status == 0 and body != "":
+            status = 200
+
+        return status
+
+    def _safe_response_content_type(self, response) -> str:
+        for field in ["content_type", "mime_type"]:
+            try:
+                value = getattr(response, field)
+                clean = self._clean_text(value, u256(120))
+                if clean != "":
+                    return clean
+            except Exception:
+                pass
+
         try:
-            data = leader_result.calldata
+            headers = getattr(response, "headers")
+            if isinstance(headers, dict):
+                for key in ["content-type", "Content-Type"]:
+                    if key in headers:
+                        return self._clean_text(headers.get(key, ""), u256(120))
         except Exception:
+            pass
+
+        return ""
+
+    def _fetch_compact_source_result(self, source_url: str, claim: str):
+        safe_url = self._canonicalize_url(source_url)
+        safe_claim = self._clean_text(claim, u256(700))
+
+        if safe_url == "":
+            return self._compact_source_result_from_body(
+                safe_claim,
+                source_url,
+                "",
+                0,
+                "",
+                "",
+            )
+
+        def evaluate_source():
+            try:
+                response = gl.nondet.web.request(safe_url, method="GET")
+                body = response.body.decode("utf-8")
+                status = self._safe_response_status(response, body)
+                content_type = self._safe_response_content_type(response)
+            except Exception:
+                body = ""
+                status = 0
+                content_type = ""
+
+            return self._compact_source_result_from_body(
+                safe_claim,
+                safe_url,
+                safe_url,
+                status,
+                content_type,
+                body,
+            )
+
+        def validate_source_result(leader_result) -> bool:
+            try:
+                leader = leader_result.calldata
+            except Exception:
+                return False
+
+            if not isinstance(leader, dict):
+                return False
+
+            validator = evaluate_source()
+            return self._compact_source_results_agree(leader, validator)
+
+        try:
+            result = gl.eq_principle.strict_eq(evaluate_source)
+        except Exception:
+            try:
+                result = gl.vm.run_nondet_unsafe(
+                    evaluate_source,
+                    validate_source_result,
+                )
+            except Exception:
+                result = self._compact_source_result_from_body(
+                    safe_claim,
+                    safe_url,
+                    safe_url,
+                    0,
+                    "",
+                    "",
+                )
+
+        if not isinstance(result, dict):
+            return self._compact_source_result_from_body(
+                safe_claim,
+                safe_url,
+                safe_url,
+                0,
+                "",
+                "",
+            )
+
+        return self._finalize_compact_evidence_result(result)
+
+    def _compact_source_results_agree(self, leader, validator) -> bool:
+        leader_clean = self._finalize_compact_evidence_result(leader)
+        validator_clean = self._finalize_compact_evidence_result(validator)
+
+        if leader_clean.get("schema_version", 0) != 1:
             return False
 
-        return self._validate_web_text(data)
-
-    def _validate_web_text(self, data) -> bool:
-        if not isinstance(data, str):
+        if leader_clean.get("domain", "") != validator_clean.get("domain", ""):
             return False
 
-        text = self._clean_text(data, u256(5000))
-
-        if len(text) < 80:
+        if leader_clean.get("verdict", "") != validator_clean.get("verdict", ""):
             return False
 
-        if len(str(data)) > 50000:
+        if leader_clean.get("credibility_band", "") != validator_clean.get("credibility_band", ""):
+            return False
+
+        if leader_clean.get("http_status", 0) >= 400:
+            return validator_clean.get("http_status", 0) >= 400
+
+        if validator_clean.get("http_status", 0) >= 400:
+            return False
+
+        leader_score = self._normalise_score_int(leader_clean.get("credibility_score", 0))
+        validator_score = self._normalise_score_int(validator_clean.get("credibility_score", 0))
+
+        if leader_score > validator_score + 5:
+            return False
+
+        if validator_score > leader_score + 5:
+            return False
+
+        leader_evidence = leader_clean.get("evidence", [])
+        validator_evidence = validator_clean.get("evidence", [])
+
+        if not isinstance(leader_evidence, list):
+            return False
+
+        if not isinstance(validator_evidence, list):
+            return False
+
+        if leader_clean.get("verdict", "") == "SUPPORTED":
+            if len(leader_evidence) == 0 or len(validator_evidence) == 0:
+                return False
+
+        matched = 0
+
+        for leader_item in leader_evidence:
+            if not isinstance(leader_item, dict):
+                continue
+
+            leader_statement = self._clean_text(leader_item.get("statement", ""), u256(260))
+
+            if leader_statement == "":
+                continue
+
+            for validator_item in validator_evidence:
+                if not isinstance(validator_item, dict):
+                    continue
+
+                validator_statement = self._clean_text(
+                    validator_item.get("statement", ""),
+                    u256(260),
+                )
+
+                if self._keyword_overlap_count(
+                    validator_statement,
+                    self._claim_keywords(leader_statement),
+                ) >= 2:
+                    matched = matched + 1
+                    break
+
+        if len(leader_evidence) > 0 and matched == 0:
+            return False
+
+        expected_hash = self._hash_canonical_json(
+            self._compact_evidence_hash_input(leader_clean)
+        )
+
+        if str(leader_clean.get("normalized_evidence_hash", "")) != expected_hash:
             return False
 
         return True
 
-    def _web_fetches_substantially_agree(self, leader_text: str, validator_text: str) -> bool:
-        leader_clean = self._clean_text(leader_text, u256(5000))
-        validator_clean = self._clean_text(validator_text, u256(5000))
-
-        if not self._validate_web_text(leader_clean):
-            return False
-
-        if not self._validate_web_text(validator_clean):
-            return False
-
-        leader_len = len(leader_clean)
-        validator_len = len(validator_clean)
-        shorter = leader_len
-        longer = validator_len
-
-        if validator_len < shorter:
-            shorter = validator_len
-            longer = leader_len
-
-        if longer == 0:
-            return False
-
-        # Live pages can differ per validator because of CDN, headers, and time.
-        # Require substantial same-page overlap without demanding byte identity.
-        if (shorter * 100) // longer < 35:
-            return False
-
-        leader_words = leader_clean.lower().split(" ")
-        validator_words = validator_clean.lower().split(" ")
-        shared_words = 0
-        checked_words = 0
-
-        for word in leader_words:
-            if len(word) < 5:
-                continue
-
-            checked_words = checked_words + 1
-
-            for validator_word in validator_words:
-                if word == validator_word:
-                    shared_words = shared_words + 1
-                    break
-
-            if shared_words >= 8:
-                return True
-
-            if checked_words >= 80:
-                break
-
-        return False
-
-    def _fetch_web_text(self, source_url: str) -> str:
-        safe_url = self._clean_text(source_url, u256(500))
-
-        if not safe_url.startswith("https://") and not safe_url.startswith("http://"):
-            return ""
-
-        def fetch_fn():
-            response = gl.nondet.web.request(safe_url, method="GET")
-            body = response.body.decode("utf-8")
-            if len(body) < 80:
-                return ""
-            return body[:700]
-
-        try:
-            fetched = gl.eq_principle.strict_eq(fetch_fn)
-        except Exception:
-            fetched = ""
-
-        return self._clean_text(fetched, u256(5000))
-
-    def _build_contract_fetched_sources(self, evidence_urls_text: str, submitted_url: str):
+    def _build_contract_fetched_sources(self, evidence_urls_text: str, submitted_url: str, primary_claim: str):
         evidence_urls = self._parse_evidence_urls(evidence_urls_text, submitted_url)
         submitted_domain = self.extract_domain(submitted_url)
         sources = []
 
         for evidence_url in evidence_urls:
-            fetched_text = self._fetch_web_text(evidence_url)
+            compact_result = self._fetch_compact_source_result(evidence_url, primary_claim)
 
-            if fetched_text == "":
+            if not isinstance(compact_result, dict):
                 continue
 
-            domain = self.extract_domain(evidence_url)
-            score = int(self.score_domain(domain))
+            verdict = str(compact_result.get("verdict", "SOURCE_UNAVAILABLE"))
+
+            if verdict == "SOURCE_UNAVAILABLE":
+                continue
+
+            resolved_url = self._clean_text(compact_result.get("resolved_url", ""), u256(500))
+            domain = self.extract_domain(resolved_url)
+            score = self._normalise_score_int(compact_result.get("credibility_score", 0))
             evidence_kind = "contract_fetched_external_url"
 
             if domain != "" and submitted_domain != "" and domain == submitted_domain:
                 evidence_kind = "contract_fetched_submitted_url"
 
+            evidence_items = compact_result.get("evidence", [])
+            snippet = ""
+
+            if isinstance(evidence_items, list) and len(evidence_items) > 0:
+                first = evidence_items[0]
+
+                if isinstance(first, dict):
+                    snippet = self._clean_text(first.get("statement", ""), u256(260))
+
             sources.append({
-                "url": evidence_url,
-                "title": domain,
+                "url": resolved_url,
+                "requested_url": self._clean_text(compact_result.get("requested_url", evidence_url), u256(500)),
+                "resolved_url": resolved_url,
+                "title": self._clean_text(compact_result.get("source_title", domain), u256(180)),
                 "domain": domain,
                 "publication": domain,
                 "credibility_score": score,
-                "source_type": self.infer_source_type(domain),
-                "is_supporting": True,
+                "credibility_band": self._clean_text(compact_result.get("credibility_band", "UNKNOWN"), u256(20)),
+                "source_type": self._clean_text(compact_result.get("source_type", "OTHER"), u256(40)),
+                "is_supporting": verdict == "SUPPORTED",
                 "relevance_score": "0.5",
-                "snippet": fetched_text[:700],
+                "snippet": snippet,
+                "evidence": evidence_items,
                 "evidence_kind": evidence_kind,
-                "evidence_hash": self._hash_text(evidence_url + "|" + fetched_text),
-                "verification_note": "Fetched inside the GenLayer contract with nondeterministic web access and validator agreement.",
+                "evidence_hash": self._clean_text(compact_result.get("normalized_evidence_hash", ""), u256(80)),
+                "normalized_evidence_hash": self._clean_text(compact_result.get("normalized_evidence_hash", ""), u256(80)),
+                "source_verdict": verdict,
+                "reasoning": self._clean_text(compact_result.get("reasoning", ""), u256(420)),
+                "http_status": self._normalise_http_status(compact_result.get("http_status", 0)),
+                "verification_note": "Evaluated through GenLayer validator consensus.",
             })
 
         return sources
@@ -1241,23 +1881,39 @@ class TrustDSourceUnified(gl.Contract):
                 if source_type == "":
                     source_type = self.infer_source_type(domain)
 
+                compact_hash = self._clean_text(
+                    item.get("normalized_evidence_hash", item.get("evidence_hash", "")),
+                    u256(80),
+                )
+
+                if compact_hash == "":
+                    compact_hash = self._hash_text(source_url + "|" + source_title + "|" + str(item.get("snippet", "")))
+
                 cleaned.append({
                     "url": source_url,
+                    "requested_url": self._clean_text(item.get("requested_url", source_url), u256(500)),
+                    "resolved_url": self._clean_text(item.get("resolved_url", source_url), u256(500)),
                     "title": source_title,
                     "domain": domain,
                     "publication": self._clean_text(item.get("publication", ""), u256(120)),
                     "credibility_score": self._normalise_score_int(blended_score),
+                    "credibility_band": self._clean_text(item.get("credibility_band", ""), u256(20)),
                     "source_type": source_type,
                     "is_supporting": self._safe_bool(item.get("is_supporting", True), True),
                     "relevance_score": self._normalise_decimal_string(
                         item.get("relevance_score", "0.5")
                     ),
                     "snippet": self._clean_text(item.get("snippet", ""), u256(700)),
+                    "evidence": item.get("evidence", []),
                     "evidence_kind": self._clean_text(
                         item.get("evidence_kind", "external_evidence_reference"),
                         u256(60),
                     ),
-                    "evidence_hash": self._hash_text(source_url + "|" + source_title + "|" + str(item.get("snippet", ""))),
+                    "evidence_hash": compact_hash,
+                    "normalized_evidence_hash": compact_hash,
+                    "source_verdict": self._clean_text(item.get("source_verdict", ""), u256(40)),
+                    "reasoning": self._clean_text(item.get("reasoning", ""), u256(420)),
+                    "http_status": self._normalise_http_status(item.get("http_status", 0)),
                     "verification_note": self._clean_text(
                         item.get("verification_note", "Source has URL, domain, and evidence snippet."),
                         u256(180),
@@ -1488,11 +2144,16 @@ Expected JSON array:
         if isinstance(claims, list):
             primary_claim = self.get_primary_claim(self._json_dumps(claims))
 
+        summary_claim = self._clean_text(snapshot.get("claim_summary", ""), u256(700))
+
+        if summary_claim != "":
+            primary_claim = summary_claim
+
         if primary_claim == "":
             primary_claim = str(snapshot.get("claim_summary", ""))[:700]
 
         sources = self._clean_sources_list(
-            self._build_contract_fetched_sources(evidence_urls_text, url),
+            self._build_contract_fetched_sources(evidence_urls_text, url, primary_claim),
             url,
             title,
             content,
