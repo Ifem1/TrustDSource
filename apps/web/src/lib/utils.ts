@@ -31,6 +31,7 @@ export function formatPercent(value: number): string {
 
 export function formatDate(dateStr: string): string {
   try {
+    if (!dateStr || dateStr.startsWith("seq:")) return dateStr;
     return new Date(dateStr).toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",
@@ -41,21 +42,28 @@ export function formatDate(dateStr: string): string {
   }
 }
 
+export function formatDateTime(dateStr: string): string {
+  try {
+    if (!dateStr) return "";
+    if (dateStr.startsWith("seq:")) return `On-chain ${dateStr}`;
+
+    const date = new Date(dateStr);
+    if (Number.isNaN(date.getTime())) return dateStr;
+
+    return date.toLocaleString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
 export function formatTimeAgo(dateStr: string): string {
-  const now = Date.now();
-  const then = new Date(dateStr).getTime();
-  const diff = now - then;
-
-  const seconds = Math.floor(diff / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-
-  if (days > 30) return formatDate(dateStr);
-  if (days > 0) return `${days}d ago`;
-  if (hours > 0) return `${hours}h ago`;
-  if (minutes > 0) return `${minutes}m ago`;
-  return "just now";
+  return formatDateTime(dateStr);
 }
 
 export function getScoreGrade(score: number): string {

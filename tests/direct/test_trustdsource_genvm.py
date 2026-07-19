@@ -71,6 +71,7 @@ def test_contract_runs_under_genvm_and_blocks_replays(
         "Mismatch wallet claim",
         "news",
         "0x0000000000000000000000000000000000000001",
+        "2026-07-19T12:00:00Z",
     )
     assert unauthorized_report == ""
 
@@ -81,6 +82,7 @@ def test_contract_runs_under_genvm_and_blocks_replays(
         "The city council approved a public budget.",
         "news",
         sender,
+        "2026-07-19T12:01:00Z",
     )
     assert report_id
 

@@ -36,12 +36,7 @@ export interface ContractLeaderboardRow {
 
 function toReportRow(report: TrustDSourceReport): ContractReportRow {
   const rawCreatedAt = report.created_at ? String(report.created_at) : "";
-  const createdAt =
-    !rawCreatedAt ||
-    rawCreatedAt.startsWith("seq:") ||
-    Number.isNaN(new Date(rawCreatedAt).getTime())
-      ? new Date().toISOString()
-      : rawCreatedAt;
+  const createdAt = rawCreatedAt || String(report.snapshot_timestamp ?? "");
 
   return {
     report_id: String(report.report_id ?? ""),
@@ -94,8 +89,11 @@ export async function getRecentContractReports(
   return reports
     .filter((row): row is ContractReportRow => Boolean(row?.report_id))
     .sort(
-      (a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      (a, b) => {
+        const bTime = new Date(b.created_at).getTime();
+        const aTime = new Date(a.created_at).getTime();
+        return (Number.isNaN(bTime) ? 0 : bTime) - (Number.isNaN(aTime) ? 0 : aTime);
+      }
     );
 }
 

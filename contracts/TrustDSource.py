@@ -68,6 +68,26 @@ class TrustDSourceUnified(gl.Contract):
             json.dumps(value, sort_keys=True).encode()
         ).hexdigest()
 
+    def _now_timestamp_text(self) -> str:
+        try:
+            timestamp = str(gl.message.datetime)
+        except Exception:
+            timestamp = ""
+
+        if timestamp == "" or timestamp == "None":
+            return "seq:" + str(int(self.verification_count))
+
+        return self._clean_text(timestamp, u256(80))
+
+    def _normalise_timestamp_text(self, value: str) -> str:
+        clean = self._clean_text(value, u256(80))
+
+        if len(clean) >= 16:
+            if "T" in clean and ("Z" in clean or "+" in clean or "-" in clean):
+                return clean
+
+        return self._now_timestamp_text()
+
     def _clean_text(self, value, max_len: u256) -> str:
         text = str(value).strip()
         limit = int(max_len)
@@ -2864,6 +2884,7 @@ Expected JSON object:
         claim_summary: str,
         category: str,
         submitter_wallet: str,
+        submitted_at: str,
     ) -> str:
         safe_title = self._clean_text(title, u256(200))
         safe_url = self._clean_text(url, u256(500))
@@ -2871,6 +2892,7 @@ Expected JSON object:
         safe_summary = self._clean_text(claim_summary, u256(1000))
         safe_category = self._normalise_category(category)
         safe_submitter = self._clean_text(submitter_wallet, u256(120))
+        safe_submitted_at = self._normalise_timestamp_text(submitted_at)
 
         if self._lower(safe_submitter) != self._lower(self._sender_text()):
             return ""
@@ -2892,7 +2914,7 @@ Expected JSON object:
             "claim_summary": safe_summary,
             "category": safe_category,
             "submitter_wallet": safe_submitter,
-            "snapshot_timestamp": "seq:" + str(int(self.verification_count)),
+            "snapshot_timestamp": safe_submitted_at,
             "status": "snapshot_locked",
             "locked": True,
             "claims": [],
@@ -3026,7 +3048,10 @@ Expected JSON object:
             "misinformation_signals": analysis.get("misinformation_signals", []),
             "bias_signals": analysis.get("bias_signals", []),
             "claims": claims,
-            "created_at": "seq:" + str(int(self.verification_count)),
+            "created_at": self._clean_text(
+                snapshot.get("snapshot_timestamp", self._now_timestamp_text()),
+                u256(80),
+            ),
         }
 
         snapshot["final_report"] = final_report
@@ -3061,7 +3086,7 @@ Expected JSON object:
         ).hexdigest()
 
         snapshot["verification_hash"] = verification_hash
-        snapshot["stored_at"] = "seq:" + str(int(self.verification_count))
+        snapshot["stored_at"] = self._now_timestamp_text()
         snapshot["stored"] = True
         snapshot["finalized"] = True
         self._store_snapshot(report_id, snapshot)
@@ -3200,6 +3225,7 @@ Expected JSON object:
         claim_summary: str,
         category: str,
         submitter_wallet: str,
+        submitted_at: str,
     ) -> str:
         """
         Fast safe flow.
@@ -3214,6 +3240,7 @@ Expected JSON object:
             claim_summary,
             category,
             submitter_wallet,
+            submitted_at,
         )
 
         self.extract_claims(report_id)
@@ -3234,6 +3261,7 @@ Expected JSON object:
         claim_summary: str,
         category: str,
         submitter_wallet: str,
+        submitted_at: str,
         evidence_urls_text: str,
     ) -> str:
         """
@@ -3248,6 +3276,7 @@ Expected JSON object:
             claim_summary,
             category,
             submitter_wallet,
+            submitted_at,
         )
 
         self.extract_claims(report_id)
@@ -3298,7 +3327,7 @@ Expected JSON object:
                 "reasoning": "",
                 "ai_summary": "",
                 "claims": snapshot.get("claims", []),
-                "created_at": "",
+                "created_at": snapshot.get("snapshot_timestamp", ""),
             }
 
         report["verification_hash"] = snapshot.get("verification_hash", "")

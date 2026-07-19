@@ -8,7 +8,7 @@ import { createClient, createAccount, generatePrivateKey } from "genlayer-js";
 import { studionet } from "genlayer-js/chains";
 import { TransactionStatus } from "genlayer-js/types";
 
-const CONTRACT_ADDRESS = "0xe90847463f1D9C663c2946B6DE718538F2226d0A";
+const CONTRACT_ADDRESS = "0xFDf33604b6BDEfFCf004CFD543dD1aa68F2720Bd";
 
 const args = Object.fromEntries(
   process.argv.slice(2).map((a) => {
@@ -150,6 +150,7 @@ async function runFullFlow(client, walletAddress, item, mode, runLabel) {
     item.claimSummary,
     item.category,
     walletAddress,
+    new Date().toISOString(),
   ]);
 
   const total = await client.readContract({

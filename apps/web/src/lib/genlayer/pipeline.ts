@@ -301,6 +301,7 @@ export async function runVerificationPipeline(
       formData.claimSummary,
       formData.category,
       walletAddress,
+      new Date().toISOString(),
     ],
     onStatus
   );
